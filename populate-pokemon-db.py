@@ -200,9 +200,27 @@ def insert_data():
     cursor.close()
     db.close()
 
+def print_summary():
+    if download_errors:
+        print("\nDownload Errors:")
+        for error in download_errors:
+            print(f"- {error}")
+    else:
+        print("\nNo download errors.")
+
+    if db_insert_errors:
+        print("\nDatabase Insertion Errors:")
+        for error in db_insert_errors:
+            print(f"- {error}")
+    else:
+        print("\nNo database insertion errors.")
 
 if __name__ == "__main__":
     try:
         insert_data()
     except Exception as e:
         print(f"An unexpected error occurred: {str(e)}")
+    finally:
+        print_summary()
+
+
