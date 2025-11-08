@@ -163,8 +163,43 @@ def insert_data():
 
             print(f"Processed {card_idx} cards in set {set_id} ({file_idx}/{len(card_files)})")
 
+    print("Inserting decks...")
+    decks_dir = os.path.join(JSON_ROOT, "decks/en")
+    for file_idx, deck_file in enumerate(os.listdir(decks_dir), start=1):
+        set_id = os.path.splitext(deck_file)[0]
+        with open(os.path.join(decks_dir, deck_file), "r", encoding="utf-8") as f:
+            decks = json.load(f)
+            for deck in decks:
+                try:
+                    cursor.execute("""
+                        INSERT INTO decks (id, name, types)
+                        VALUES (%s, %s, %s)
+                        ON DUPLICATE KEY UPDATE name=VALUES(name), types=VALUES(types)
+                    """, (
+                        deck["id"],
+                        deck["name"],
+                        get_json_value(deck.get("types"))
+                    ))
+                    for card_entry in deck.get("cards", []):
+                        cursor.execute("""
+                            INSERT INTO deck_cards (deck_id, card_id, count)
+                            VALUES (%s, %s, %s)
+                            ON DUPLICATE KEY UPDATE count=VALUES(count)
+                        """, (
+                            deck["id"],
+                            card_entry["id"],
+                            card_entry["count"]
+                        ))
+                    db.commit()
+                except Exception as e:
+                    error_message = f"Error inserting deck {deck['id']} from set {set_id}: {str(e)}"
+                    print(error_message)
+                    db_insert_errors.append(error_message)
+                print(f"Processed deck {deck['id']} in set {set_id} ({deck_file}/{len(os.listdir(decks_dir))})")
+
     cursor.close()
     db.close()
+
 
 if __name__ == "__main__":
     try:
