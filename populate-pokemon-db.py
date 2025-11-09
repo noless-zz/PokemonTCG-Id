@@ -5,7 +5,8 @@ import requests
 from pathlib import Path
 
 # Root folder of the Pokémon TCG dataset (JSONs for sets, cards, decks)
-JSON_ROOT = "../Databases/Pokemon/pokemon-tcg-data-master"
+# Absolute path in this workspace (adjusted to the cloned 'Pokémon Mosaics - Database' folder)
+JSON_ROOT = r"c:\Users\Daniel\Projects\PokemonTCG-Gen\Pokémon Mosaics - Database\pokemon-tcg-data-master"
 
 # Database connection configuration
 DB_CONFIG = {
@@ -17,7 +18,8 @@ DB_CONFIG = {
 }
 
 # Folder where downloaded images (set logos, card images) are saved
-IMAGES_DIR = "../Databases/Pokemon/Newbie/images"
+# Store images at an `images` folder in the project root (will be created if needed)
+IMAGES_DIR = r"c:\Users\Daniel\Projects\PokemonTCG-Gen\images"
 Path(IMAGES_DIR).mkdir(exist_ok=True)
 
 # Lists for collecting errors during download or DB insertion
