@@ -56,4 +56,64 @@ def compute_average_and_median_colors(image_path):
 
     return avg_color_rgb, median_color_rgb, avg_color_hsv, median_color_hsv, avg_color_lab, median_color_lab
 
+def process_images():
+    connection = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="pokemon_tcg"
+    )
+    cursor = connection.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT c.card_id, c.small_image
+        FROM cards_art c
+        LEFT JOIN preprocessed_images p ON c.card_id = p.card_id
+        WHERE p.card_id IS NULL
+    """)
+    rows = cursor.fetchall()
+    total_images = len(rows)
+    print(f"Found {total_images} images to process.")
+
+    start_time = time.time()
+    errors = []
+
+    for index, row in enumerate(rows, start=1):
+        card_id, image_path = row["card_id"], row["small_image"]
+        try:
+            avg_color_rgb, median_color_rgb, avg_color_hsv, median_color_hsv, avg_color_lab, median_color_lab = compute_average_and_median_colors(image_path)
+            cursor.execute("""
+                INSERT INTO preprocessed_images (
+                    card_id,
+                    average_color_rgb,
+                    median_color_rgb,
+                    average_color_hsv,
+                    median_color_hsv,
+                    average_color_lab,
+                    median_color_lab
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (card_id, json.dumps(avg_color_rgb), json.dumps(median_color_rgb),
+                  json.dumps(avg_color_hsv), json.dumps(median_color_hsv),
+                  json.dumps(avg_color_lab), json.dumps(median_color_lab)))
+            connection.commit()
+        except Exception as e:
+            errors.append((card_id, str(e)))
+
+        elapsed_time = time.time() - start_time
+        avg_time_per_image = elapsed_time / index
+        remaining_time = avg_time_per_image * (total_images - index)
+        print(f"Processed {index}/{total_images} images. Estimated time remaining: {remaining_time:.2f}s.", end="\r")
+
+    print("\nProcessing complete.")
+    if errors:
+        print(f"\nEncountered {len(errors)} errors:")
+        for card_id, error in errors:
+            print(f"Card ID: {card_id}, Error: {error}")
+
+    cursor.close()
+    connection.close()
+
+if __name__ == "__main__":
+    process_images()
 
