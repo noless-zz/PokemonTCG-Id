@@ -2,3 +2,6 @@ mysql-connector-python
 requests
 opencv-python
 numpy
+tifffile
+pillow
+colormath
