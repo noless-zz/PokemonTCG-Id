@@ -24,5 +24,20 @@ def compute_average_and_median_colors(image_path):
         "b": round(median_color_bgr[0], 2)
     }
 
-    # (HSV & Lab will be added in later commits)
-    return avg_color_rgb, median_color_rgb
+    image_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    avg_color_hsv_vec = np.mean(image_hsv, axis=(0, 1))
+    avg_color_hsv = {
+        "h": round(avg_color_hsv_vec[0] * (360 / 179), 2),
+        "s": round(avg_color_hsv_vec[1] / 255, 2),
+        "v": round(avg_color_hsv_vec[2] / 255, 2)
+    }
+
+    median_color_hsv_vec = np.median(image_hsv, axis=(0, 1))
+    median_color_hsv = {
+        "h": round(median_color_hsv_vec[0] * (360 / 179), 2),
+        "s": round(median_color_hsv_vec[1] / 255, 2),
+        "v": round(median_color_hsv_vec[2] / 255, 2)
+    }
+
+    return avg_color_rgb, median_color_rgb, avg_color_hsv, median_color_hsv
+
