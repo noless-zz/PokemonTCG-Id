@@ -216,3 +216,45 @@ def patch_asscalar(a):
     return a.item()
 
 setattr(np, "asscalar", patch_asscalar)
+
+class AlgorithmResult:
+    def __init__(self, image, path=None):
+        self.image = image
+        self.path = path
+
+@register_algorithm("all")
+def selected_algorithms(temporary_files, target_width, target_height, config, total_images, batch_size):
+    output_prefix = config.get("prefix", "")
+    to_execute = {
+        "average": {"algorithm_name": "average"},
+        "median": {"algorithm_name": "median"},
+        "average-row": {"algorithm_name": "average_row"},
+        "average-row-15": {"algorithm_name": "average_row", "config": {"thickness": 8}},
+        "gradient": {"algorithm_name": "average_gradient"},
+        "heatmap": {"algorithm_name": "similarity_heatmap"},
+        "average-square": {"algorithm_name": "average_square", "config": {"side": 8}},
+        "columns-random": {"algorithm_name": "compose_columns", "config": {"thickness": 3}},
+        "columns-sorted": {"algorithm_name": "compose_columns", "config": {"thickness": 3, "sorted": "true"}},
+        "columns-sorted-reverse": {"algorithm_name": "compose_columns", "config": {"thickness": 3, "sorted": "true", "reverse": "true"}},
+    }
+
+    results = []
+    for key, value in to_execute.items():
+        algorithm_name = value["algorithm_name"]
+        if algorithm_name not in ALGORITHMS:
+            print(f"Algorithm {algorithm_name} not registered. Skipping.")
+            continue
+
+        algorithm_config = value["config"] if "config" in value else {}
+        print(f"Processing algorithm: {algorithm_name} with config: {algorithm_config}")
+        
+        algorithm_result = apply_algorithm(algorithm_name, temporary_files, (target_width, target_height), algorithm_config, total_images, batch_size)
+
+        if len(algorithm_result) != 1:
+            print(f"Algorithm {algorithm_name} returned multiple results, expected single instance. Not saving results.")
+            continue
+
+        algorithm_path = f"{output_prefix}-{key}.png"
+        results.append(AlgorithmResult(algorithm_result[0].image, algorithm_path))
+
+    return results
