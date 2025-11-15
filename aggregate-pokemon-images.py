@@ -258,3 +258,48 @@ def selected_algorithms(temporary_files, target_width, target_height, config, to
         results.append(AlgorithmResult(algorithm_result[0].image, algorithm_path))
 
     return results
+
+@register_algorithm("average")
+def average_algorithm(temporary_files, target_width, target_height, config, total_images, batch_size):
+    accumulator = np.zeros((target_height, target_width, 3), dtype=np.float64)
+
+    batch_number = 1
+    start_time = time.time()
+
+    for temporary_file in temporary_files:
+        with open(temporary_file, "rb") as file:
+            batch = pickle.load(file)
+
+        batch_array = np.array(batch)
+        accumulator += np.sum(batch_array, axis=0)
+        
+        update_batch_processed(start_time, batch_number, len(temporary_files))
+        batch_number += 1
+
+    result = (accumulator / total_images).astype(np.uint8)
+    return [AlgorithmResult(result)]
+
+@register_algorithm("median")
+def median_algorithm(temporary_files, target_width, target_height, config, total_images, batch_size):
+    median = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+
+    start_time = time.time()
+
+    for y in range(target_height):
+        row_values = np.zeros((total_images, target_width, 3), dtype=np.uint8)
+
+        index = 0
+        for temporary_file in temporary_files:
+            with open(temporary_file, "rb") as file:
+                batch = pickle.load(file)
+
+            for image in batch:
+                row_values[index, :] = image[y, :]
+                index += 1
+
+        median[y, :] = np.median(row_values, axis=0)
+        update_pixel_row_processed(start_time, y+1, target_height)
+
+    return [AlgorithmResult(median)]
+
+
