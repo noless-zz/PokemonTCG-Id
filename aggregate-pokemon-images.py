@@ -302,4 +302,54 @@ def median_algorithm(temporary_files, target_width, target_height, config, total
 
     return [AlgorithmResult(median)]
 
+@register_algorithm("average_row")
+def average_row_algorithm(temporary_files, target_width, target_height, config, total_images, batch_size):
+    row_height = int(config.get("thickness", 1))
+    accumulator = np.zeros((target_height, target_width, 3), dtype=np.float64)
+
+    batch_number = 1
+    start_time = time.time()
+
+    for temporary_file in temporary_files:
+        with open(temporary_file, "rb") as file:
+            batch = pickle.load(file)
+
+        batch_array = np.array(batch)
+        for image in batch_array:
+            for y in range(0, target_height, row_height):
+                block = image[y:y+row_height, :]
+                block_average = np.mean(block, axis=(0, 1))
+                accumulator[y:y+row_height, :] += block_average
+
+        update_batch_processed(start_time, batch_number, len(temporary_files))
+        batch_number += 1
+
+    result = (accumulator / total_images).astype(np.uint8)
+    return [AlgorithmResult(result)]
+
+@register_algorithm("average_square")
+def average_square_algorithm(temporary_files, target_width, target_height, config, total_images, batch_size):
+    block_size = int(config.get("side", 1))
+    accumulator = np.zeros((target_height, target_width, 3), dtype=np.float64)
+
+    batch_number = 1
+    start_time = time.time()
+
+    for temporary_file in temporary_files:
+        with open(temporary_file, "rb") as file:
+            batch = pickle.load(file)
+
+        batch_array = np.array(batch)
+        for image in batch_array:
+            for y in range(0, target_height, block_size):
+                for x in range(0, target_width, block_size):
+                    block = image[y:y+block_size, x:x+block_size]
+                    block_average = np.mean(block, axis=(0, 1))
+                    accumulator[y:y+block_size, x:x+block_size] += block_average
+
+        update_batch_processed(start_time, batch_number, len(temporary_files))
+        batch_number += 1
+
+    result = (accumulator / total_images).astype(np.uint8)
+    return [AlgorithmResult(result)]
 
