@@ -353,3 +353,69 @@ def average_square_algorithm(temporary_files, target_width, target_height, confi
     result = (accumulator / total_images).astype(np.uint8)
     return [AlgorithmResult(result)]
 
+@register_algorithm("average_gradient")
+def average_gradient_algorithm(temporary_files, target_width, target_height, config, total_images, batch_size):
+    gradient_dx_sum = np.zeros((target_height, target_width, 3), dtype=np.float64)
+    gradient_dy_sum = np.zeros((target_height, target_width, 3), dtype=np.float64)
+    image_count = 0
+
+    batch_number = 1
+    start_time = time.time()
+
+    for temporary_file in temporary_files:
+        with open(temporary_file, "rb") as file:
+            batch = pickle.load(file)
+
+        batch_array = np.array(batch)
+
+        for image in batch_array:
+            dx = np.diff(image, axis=1, append=image[:, -1:])
+            dy = np.diff(image, axis=0, append=image[-1:, :])
+
+            gradient_dx_sum += dx
+            gradient_dy_sum += dy
+            image_count += 1
+
+        update_batch_processed(start_time, batch_number, len(temporary_files))
+        batch_number += 1
+
+    average_dx = gradient_dx_sum / image_count
+    average_dy = gradient_dy_sum / image_count
+    result = np.sqrt(np.square(average_dx) + np.square(average_dy)).astype(np.uint8)
+    return [AlgorithmResult(result)]
+
+@register_algorithm("similarity_heatmap")
+def similarity_heatmap_algorithm(temporary_files, target_width, target_height, config, total_images, batch_size):
+    sum_pixels = np.zeros((target_height, target_width, 3), dtype=np.float64)
+    sum_squared_pixels = np.zeros((target_height, target_width, 3), dtype=np.float64)
+
+    batch_number = 1
+    start_time = time.time()
+
+    for temporary_file in temporary_files:
+        with open(temporary_file, "rb") as file:
+            batch = pickle.load(file)
+
+        for image in batch:
+            sum_pixels += image
+            sum_squared_pixels += image.astype(np.float64)**2
+
+        update_batch_processed(start_time, batch_number, len(temporary_files))
+        batch_number += 1
+
+    mean_pixels = sum_pixels / total_images
+    mean_squared_pixels = sum_squared_pixels / total_images
+    variance_map = mean_squared_pixels - mean_pixels**2
+
+    normalized_heatmap = np.zeros_like(variance_map, dtype=np.uint8)
+    max_variance = np.max(variance_map)
+
+    if max_variance > 0:
+        normalized_heatmap = (variance_map / max_variance * 255).astype(np.uint8)
+
+    grayscale_heatmap = np.mean(normalized_heatmap, axis=2).astype(np.uint8)
+    red_channel = grayscale_heatmap
+    green_channel = 255 - grayscale_heatmap
+    blue_channel = np.zeros_like(grayscale_heatmap)
+    result = np.stack([red_channel, green_channel, blue_channel], axis=2)
+    return [AlgorithmResult(result)]
