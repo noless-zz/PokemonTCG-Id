@@ -594,3 +594,35 @@ def collage_algorithm(temporary_files, target_width, target_height, config, tota
         query_params = [l, a, b, prefilter_max_color_distance, l, a, b, candidates]
         cursor.execute(query, query_params)
         candidate_images = cursor.fetchall()
+        precise_candidate_images = []
+        candidate_image_distances = []
+        adaptive_max_color_distance = precise_max_color_distance
+        while len(precise_candidate_images) < 3 and adaptive_max_color_distance <= 1000:
+            for candidate_image in candidate_images:
+                candidate_lab = LabColor(
+                    lab_l=float(candidate_image["lab_l"]) * 100,
+                    lab_a=float(candidate_image["lab_a"]) * 128,
+                    lab_b=float(candidate_image["lab_b"]) * 128
+                )
+                block_lab_obj = LabColor(
+                    lab_l=l * 100,
+                    lab_a=a * 128,
+                    lab_b=b * 128
+                )
+                block_hsv = cv2.cvtColor(np.uint8([[median_block_color]]), cv2.COLOR_RGB2HSV)[0][0]
+                block_saturation = block_hsv[1] / 255.0
+
+                distance = max(0, delta_e_cie2000(block_lab_obj, candidate_lab) - float(saturation_relevance) * (float(candidate_image["saturation"]) - block_saturation))
+                candidate_image_distances.append((candidate_image["card_id"], distance))
+
+                if distance < adaptive_max_color_distance:
+                    precise_candidate_images.append((candidate_image["card_id"], candidate_image["image_path"], distance))
+            precise_candidate_images.sort(key=lambda x: x[2])
+            adaptive_max_color_distance *= 1.5
+
+        if len(precise_candidate_images) == 0:
+            candidate_image_distances.sort(key=lambda x: x[1])
+            error_message = f"Failed to find image for block at position ({y}, {x})."
+            print(f"{error_message} These are all prefiltered candidates and their CIE2000 distances: {candidate_image_distances}")
+            raise ValueError(error_message)
+
