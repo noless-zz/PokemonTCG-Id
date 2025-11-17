@@ -557,3 +557,40 @@ def collage_algorithm(temporary_files, target_width, target_height, config, tota
         a = float(round((block_lab[1] - 128) / 128, 2))
         b = float(round((block_lab[2] - 128) / 128, 2))
 
+        query = """
+            SELECT
+                pi.card_id as card_id,
+                ca.small_image as image_path,
+                pi.median_color_lab->>'$.l' as lab_l,
+                pi.median_color_lab->>'$.a' as lab_a,
+                pi.median_color_lab->>'$.b' as lab_b,
+                pi.median_color_hsv->>'$.s' as saturation
+            FROM preprocessed_images pi
+            JOIN cards_art ca ON pi.card_id = ca.card_id
+            JOIN cards_classification cc ON cc.id = ca.card_id
+        """
+
+        conditions = []
+        conditions.append("""
+            ABS(median_color_lab->>'$.l' - %s) + 
+            ABS(median_color_lab->>'$.a' - %s) + 
+            ABS(median_color_lab->>'$.b' - %s) <= %s
+        """)
+        if only_energies:
+            conditions.append("cc.supertype = 'Energy'")
+        elif not energies_allowed:
+            conditions.append("cc.supertype <> 'Energy'")
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        query += """
+            ORDER BY
+                ABS(median_color_lab->>'$.l' - %s) + 
+                ABS(median_color_lab->>'$.a' - %s) + 
+                ABS(median_color_lab->>'$.b' - %s)
+            LIMIT %s;
+        """
+
+        query_params = [l, a, b, prefilter_max_color_distance, l, a, b, candidates]
+        cursor.execute(query, query_params)
+        candidate_images = cursor.fetchall()
