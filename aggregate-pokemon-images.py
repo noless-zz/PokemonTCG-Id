@@ -683,3 +683,29 @@ def collage_algorithm(temporary_files, target_width, target_height, config, tota
     
     collage = cv2.cvtColor(collage, cv2.COLOR_BGR2RGB)
     return [AlgorithmResult(collage)]
+
+@register_algorithm("test")
+def test(temporary_files, target_width, target_height, config, total_images, batch_size):
+    with open(temporary_files[0], "rb") as file:
+        return [AlgorithmResult(pickle.load(file)[0])]
+
+def main(args, temporary_directory):
+    if not (args.image_folder or args.image_paths_file):
+        raise ValueError("You must specify either 'image_folder' or 'image_paths_file'.")
+    if args.image_folder and args.image_paths_file:
+        raise ValueError("Specify only one of 'image_folder' or 'image_paths_file'.")
+
+    if args.image_folder:
+        image_files = [os.path.join(args.image_folder, file) for file in os.listdir(args.image_folder)
+                       if file.endswith(".png") or file.endswith(".jpg")]
+    elif args.image_paths_file:
+        image_files = load_image_paths(args.image_paths_file)
+
+    config = parse_config(args.config)
+    target_size = tuple(map(int, args.size.split("x")))
+    process_batches(image_files, target_size, args.batch, args.algorithm, config, temporary_directory, args.output, args.compression)
+
+if __name__ == "__main__":
+    args = arguments()
+    run_with_timeout(main, args, args.timeout)
+
