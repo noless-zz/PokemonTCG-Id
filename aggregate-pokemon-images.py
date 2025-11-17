@@ -626,3 +626,60 @@ def collage_algorithm(temporary_files, target_width, target_height, config, tota
             print(f"{error_message} These are all prefiltered candidates and their CIE2000 distances: {candidate_image_distances}")
             raise ValueError(error_message)
 
+        selected_image = None
+        if repeat:
+            selected_image = precise_candidate_images[0]
+        else:
+            for candidate_image in precise_candidate_images:
+                card_id, image_path, _ = candidate_image
+                if card_id not in used_images:
+                    selected_image = candidate_image
+                    used_images.add(card_id)
+                    break
+            if not selected_image:
+                selected_image = random.choice(precise_candidate_images)
+
+        _, image_path, _ = selected_image
+        image = cv2.imread(image_path)
+        if image is None:
+            raise FileNotFoundError(f"Failed to load image {image_path}.")
+
+        resized_image = cv2.resize(image, (block_width, block_height))
+
+        angle = random.uniform(-rotation_range, rotation_range)
+        rotated_image = rotate(resized_image, angle)
+
+        dx = random.randint(-displacement_range, displacement_range)
+        dy = random.randint(-displacement_range, displacement_range)
+
+        insert_x = x + dx
+        insert_y = y + dy
+
+        start_x = max(0, insert_x)
+        start_y = max(0, insert_y)
+
+        end_x = min(target_width, insert_x + rotated_image.shape[1])
+        end_y = min(target_height, insert_y + rotated_image.shape[0])
+
+        crop_x1 = max(0, -insert_x)
+        crop_y1 = max(0, -insert_y)
+        crop_x2 = crop_x1 + (end_x - start_x)
+        crop_y2 = crop_y1 + (end_y - start_y)
+
+        transformed_image = rotated_image[crop_y1:crop_y2, crop_x1:crop_x2]
+        collage_section = collage[start_y:end_y, start_x:end_x]
+
+        collage[start_y:end_y, start_x:end_x] = np.where(
+            transformed_image > 0,
+            transformed_image,
+            collage_section
+        )
+
+        update_pixel_block_processed(start_time, block_number, total_blocks)
+        block_number += 1
+
+    cursor.close()
+    connection.close()
+    
+    collage = cv2.cvtColor(collage, cv2.COLOR_BGR2RGB)
+    return [AlgorithmResult(collage)]
