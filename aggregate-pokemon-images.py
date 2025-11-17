@@ -708,4 +708,3 @@ def main(args, temporary_directory):
 if __name__ == "__main__":
     args = arguments()
     run_with_timeout(main, args, args.timeout)
-

@@ -10,8 +10,8 @@ JSON_ROOT = r"c:\Users\danib\Projects\PokemonTCG-Gen\Pokémon Mosaics - Database
 # Database connection configuration
 DB_CONFIG = {
 	"host": "localhost",
-	"user": "root",
-	"password": "",
+	"user": "pokemon",
+	"password": "PokeGen_92xT!4mb7",
 	"database": "pokemon_tcg",
 	"charset": "utf8mb4"
 }
