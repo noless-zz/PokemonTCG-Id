@@ -419,3 +419,60 @@ def similarity_heatmap_algorithm(temporary_files, target_width, target_height, c
     blue_channel = np.zeros_like(grayscale_heatmap)
     result = np.stack([red_channel, green_channel, blue_channel], axis=2)
     return [AlgorithmResult(result)]
+
+@register_algorithm("compose_columns")
+def compose_columns_algorithm(temporary_files, target_width, target_height, config, total_images, batch_size):
+    column_width = int(config.get("thickness", 1))
+    sort = config.get("sorted", "false").lower() == "true"
+    reverse = config.get("reverse", "false").lower() == "true"
+    required_columns = target_width // column_width
+
+    if total_images < required_columns:
+        raise ValueError(
+            f"Insufficient images for the composition: {total_images} images provided, "
+            f"but {required_columns} are required for column thickness {column_width}."
+        )
+    elif total_images > required_columns:
+        print(
+            f"Input contains more images than required for a composition with "
+            f"column thickness: {column_width} and total width: {target_width}, "
+            f"{total_images - required_columns} out of {total_images} will not be used."
+        )
+
+    sorted_images = []
+    if sort:
+        luminosity_metrics = []
+        for temporary_file in temporary_files:
+            with open(temporary_file, "rb") as file:
+                batch = pickle.load(file)
+                for i, image in enumerate(batch):
+                    luminosity = np.mean(0.299 * image[:, :, 0] + 0.587 * image[:, :, 1] + 0.114 * image[:, :, 2])
+                    luminosity_metrics.append((luminosity, temporary_file, i))
+        sorted_images = sorted(luminosity_metrics, key=lambda x: x[0], reverse=reverse)
+    else:
+        for temporary_file in temporary_files:
+            with open(temporary_file, "rb") as file:
+                batch = pickle.load(file)
+                for i in range(len(batch)):
+                    sorted_images.append((None, temporary_file, i))
+
+    result_image = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+
+    start_time = time.time()
+    column_start = 0
+
+    for _, temporary_file, index in sorted_images[:required_columns]:
+        if column_start >= target_width:
+            break
+
+        with open(temporary_file, "rb") as file:
+            batch = pickle.load(file)
+            image = batch[index]
+
+        column = image[:, column_start:column_start + column_width, :]
+        result_image[:, column_start:column_start+column_width, :] = column
+
+        column_start += column_width
+        update_image_processed(start_time, index+1, required_columns)
+
+    return [AlgorithmResult(result_image)]
