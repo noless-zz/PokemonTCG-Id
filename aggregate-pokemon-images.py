@@ -476,3 +476,84 @@ def compose_columns_algorithm(temporary_files, target_width, target_height, conf
         update_image_processed(start_time, index+1, required_columns)
 
     return [AlgorithmResult(result_image)]
+
+def rotate(image, angle):
+    height, width = image.shape[:2]
+    new_width = int(np.ceil(abs(width * np.cos(np.radians(angle))) + abs(height * np.sin(np.radians(angle)))))
+    new_height = int(np.ceil(abs(height * np.cos(np.radians(angle))) + abs(width * np.sin(np.radians(angle)))))
+    canvas = np.zeros((new_height, new_width, 3), dtype=np.uint8)
+    center_canvas = (new_width // 2, new_height // 2)
+    center_image = (width // 2, height // 2)
+    start_y = max(0, center_canvas[1] - center_image[1])
+    end_y = min(new_height, start_y + height)
+    start_x = max(0, center_canvas[0] - center_image[0])
+    end_x = min(new_width, start_x + width)
+    image_start_y = max(0, center_image[1] - center_canvas[1])
+    image_end_y = image_start_y + (end_y - start_y)
+    image_start_x = max(0, center_image[0] - center_canvas[0])
+    image_end_x = image_start_x + (end_x - start_x)
+    canvas[start_y:end_y, start_x:end_x] = image[image_start_y:image_end_y, image_start_x:image_end_x]
+    rotation_matrix = cv2.getRotationMatrix2D(center_canvas, angle, 1.0)
+    rotated_image = cv2.warpAffine(canvas, rotation_matrix, (new_width, new_height))
+    return rotated_image
+
+@register_algorithm("collage")
+def collage_algorithm(temporary_files, target_width, target_height, config, total_images, batch_size):
+    reference_image_error_message = "The collage algorithm expects a single reference image as input"
+    if len(temporary_files) != 1:
+        raise ValueError(reference_image_error_message)
+    with open(temporary_files[0], "rb") as file:
+        batch = pickle.load(file)
+        if len(batch) != 1:
+            raise ValueError(reference_image_error_message)
+        reference_image = batch[0]
+
+    block_width = int(config.get("width", 50))
+    block_height = int(config.get("height", 50))
+    repeat = config.get("repeat", "false").lower() == "true"
+    candidates = int(config.get("candidates", 500))
+    prefilter_max_color_distance = config.get("prefilter", 30.0)
+    precise_max_color_distance = config.get("tolerance", 10.0)
+    saturation_relevance = config.get("saturation", 0.0)
+    energies_config = config.get("energies", "yes").lower()
+    energies_allowed = energies_config == "yes"
+    only_energies = energies_config == "only"
+    random_seed = config.get("seed", None)
+    rotation_range = float(config.get("rotation", 15.0))
+    displacement_range = int(config.get("displacement", 1))
+
+    connection = connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="pokemon_tcg"
+    )
+    cursor = connection.cursor(dictionary=True)
+    
+    collage = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+    used_images = set()
+
+    block_coordinates = [
+        (x, y)
+        for y in range(0, target_height, block_height)
+        for x in range(0, target_width, block_width)
+    ]
+    if random_seed is not None:
+        random.seed(random_seed)
+    random.shuffle(block_coordinates)
+
+    start_time = time.time()
+    total_blocks = math.ceil(target_width / block_width) * math.ceil(target_height / block_height)
+    block_number = 1
+
+    for x, y in block_coordinates:
+        block_end_y = min(y + block_height, target_height)
+        block_end_x = min(x + block_width, target_width)
+        block = reference_image[y:block_end_y, x:block_end_x]
+
+        median_block_color = np.median(block, axis=(0, 1))
+        block_lab = cv2.cvtColor(np.uint8([[median_block_color]]), cv2.COLOR_RGB2LAB)[0][0]
+        l = float(round(block_lab[0] / 2.55, 2))
+        a = float(round((block_lab[1] - 128) / 128, 2))
+        b = float(round((block_lab[2] - 128) / 128, 2))
+
