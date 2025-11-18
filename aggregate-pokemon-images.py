@@ -107,11 +107,29 @@ def apply_algorithm(algorithm, temporary_files, target_size, config, total_image
 def process_with_algorithm(algorithm, temporary_files, target_size, config, total_images, batch_size, output_path, compression):
     results = apply_algorithm(algorithm, temporary_files, target_size, config, total_images, batch_size)
     print(f"Processed {total_images} images.")
-    for result in results:
+
+    # Always save into a fixed folder inside the project: output_test
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(script_dir, "output_test")
+    os.makedirs(output_dir, exist_ok=True)
+
+    for idx, result in enumerate(results):
+        # Decide file name
         if result.path:
-            output_path = result.path
-        save(result.image, output_path, compression)
-        print(f"Saved output as {output_path}.")
+            # If the algorithm provided a path (e.g. "prefix-average.png"), keep its file name
+            filename = os.path.basename(result.path)
+        else:
+            # Otherwise, derive from the CLI --output or fall back to a generic name
+            base_name = os.path.basename(output_path) if output_path else "output.png"
+            name, ext = os.path.splitext(base_name)
+            if len(results) > 1:
+                filename = f"{name}_{idx}{ext or '.png'}"
+            else:
+                filename = base_name if ext else f"{name}.png"
+
+        final_path = os.path.join(output_dir, filename)
+        save(result.image, final_path, compression)
+        print(f"Saved output as {final_path}.")
 
 def update_batch_preprocessed(start_time, batch_number, total_batches):
     update_progress("Batch", "preprocessed", start_time, batch_number, total_batches)
@@ -524,8 +542,8 @@ def collage_algorithm(temporary_files, target_width, target_height, config, tota
 
     connection = connect(
         host="localhost",
-        user="root",
-        password="",
+        user="pokemon",
+        password="PokeGen_92xT!4mb7",
         database="pokemon_tcg"
     )
     cursor = connection.cursor(dictionary=True)
