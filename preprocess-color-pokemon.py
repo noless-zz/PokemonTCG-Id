@@ -59,8 +59,8 @@ def compute_average_and_median_colors(image_path):
 def process_images():
     connection = mysql.connector.connect(
         host="localhost",
-        user="root",
-        password="",
+        user="pokemon",
+        password="PokeGen_92xT!4mb7",
         database="pokemon_tcg"
     )
     cursor = connection.cursor(dictionary=True)
