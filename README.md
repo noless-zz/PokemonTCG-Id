@@ -5,31 +5,30 @@ A high-resolution collage generator using thousands of Pokémon TCG cards.
 
 <p align="center"> <img src="putmybannerhere" width="700"/> </p>
 
-## 📑 Table of Contents**
-## 📑 Table of Contents
-- [Overview](#overview)
-- [Project Structure](#project-structure)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Dataset Download & Setup](#dataset-download--setup)
-- [Color Preprocessing](#color-preprocessing)
-- [Generating The Collage](#generating-the-collage)
-- [Available Algorithms](#available-algorithms)
-- [Collage Parameters](#collage-parameters)
-- [TIFF Support](#tiff-support)
-- [Images](#images)
-- [Performance Notes](#performance-notes)
-- [Troubleshooting](#troubleshooting)
+## Table of Contents 📑
+- [Overview](#overview-)
+- [Project Structure](#project-structure-)
+- [Requirements](#requirements-)
+- [Installation](#installation-)
+- [Dataset Download & Setup](#dataset-download--setup-)
+- [Color Preprocessing](#color-preprocessing-)
+- [Generating The Collage](#generating-the-collage-)
+- [Available Algorithms](#available-algorithms-)
+- [Collage Parameters](#collage-parameters-)
+- [TIFF Support](#tiff-support-)
+- [Images](#images-)
+- [Performance Notes](#performance-notes-)
+- [Troubleshooting](#troubleshooting-)
 
 
-## 🧩 Overview
+## Overview 🧩
 
 This project generates ultra-high-resolution image mosaics using Pokémon TCG card art.
 It loads an input image, splits it into blocks, and finds the closest matching Pokémon card for each block using LAB color distance, HSV weighting, saturation awareness, and optional rotation/displacement.
 
 Outputs can reach 7000×7000 or more and are suitable for large prints and posters.
 
-## 📁 Project Structure
+## Project Structure 📁
 ```bash
 PokemonTCG-Gen/
 │
@@ -43,7 +42,7 @@ PokemonTCG-Gen/
 ```
 
 
-## ✅ Requirements
+## Requirements ✅
 
 - Python 3.10+
 
@@ -61,7 +60,7 @@ PokemonTCG-Gen/
 
 - ColorMath
 
-## 🛠 Installation
+## Installation 🛠
 - Clone
 ```bash
 git clone https://github.com/mmitzy/PokemonTCG-Gen.git
@@ -75,7 +74,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## 📥 Database Download & Setup
+## Database Download & Setup 📥
 
 Run:
 
@@ -85,7 +84,7 @@ python populate-pokemon-db.py
 
 Creates all tables + downloads all official Pokémon TCG images + fills DB.
 
-## 🎨 Color Preprocessing
+## Color Preprocessing 🎨
 
 Run:
 
@@ -95,7 +94,7 @@ python preprocess-color-pokemon-db.py
 
 This computes average/median colors in RGB, HSV, LAB and stores them in MySQL.
 
-## 🧱 Generating The Collage
+## Generating The Collage 🧱
 
 Example (7K resolution):
 
@@ -103,7 +102,7 @@ Example (7K resolution):
 python aggregate-pokemon-images.py input_test --algorithm collage --size 7000x7000 --timeout 999 --output output_test/final.png --config "width=20,height=20,candidates=2000,prefilter=30,tolerance=8,saturation=0.4"
 ```
 
-## 🧠 Available Algorithms
+## Available Algorithms 🧠
 -collage: The main Pokémon mosaic engine
 -average: Pixel averages
 -median: Pixel medians
@@ -113,7 +112,7 @@ python aggregate-pokemon-images.py input_test --algorithm collage --size 7000x70
 -compose_columns: Column-stacked composition
 -test: Debug mode
 
-## ⚙️ Collage Algorithm Parameters
+## Collage Algorithm Parameters ⚙️
 
 ```bash
 --config "width=20,height=20,candidates=2000,prefilter=30,tolerance=8,saturation=0.4,rotation=15,displacement=1"
@@ -130,7 +129,7 @@ Parameter meanings:
 -displacement: Pixel jitter
 -repeat: Allow card reuse
 
-## 🖼 TIFF Support
+## TIFF Support 🖼
 
 TIFF is recommended for huge outputs (≥4000×4000):
 
@@ -144,7 +143,7 @@ Example:
 --output output_test/final.tiff --compression deflate
 ```
 
-## 📸 Images
+## Images 📸
 1. Fast Test – 512×512
 Input  Output
 <img src="input_test/example_input.jpg" width="250"/>	<img src="output_test/example_output_512.png" width="250"/>
@@ -158,7 +157,7 @@ Input  Output
 Before  After
 <img src="output_test/sky_bad.png" width="300"/>	<img src="output_test/sky_good.png" width="300"/>
 
-## 🚀 Performance Notes
+## Performance Notes 🚀
 
 Large collages (7000×7000) can take 8-24 hours
 
@@ -168,7 +167,7 @@ Avoid system sleep mode
 
 Increase candidates, prefilter, saturation for better color fidelity
 
-## 🩹 Troubleshooting
+## Troubleshooting 🩹
 ❗ No candidates found
 
 Increase:
