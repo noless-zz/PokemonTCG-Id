@@ -5,20 +5,22 @@ A high-resolution collage generator using thousands of Pokémon TCG cards.
 
 <p align="center"> <img src="putmybannerhere" width="700"/> </p>
 
-**📑 Table of Contents**
-- [Overview](#🧩-overview**)
-- [Project Structure](#📁-Project-Structure)
-- [Requirements](#✅-Rquirements)
-- [Installation](#🛠-Installation)
-- [Dataset Download & Setup](#📥-Dataset-Download-&-Setup)
-- [Color Preprocessing](#🎨-Color-Preprocessing)
-- [Generating The Collage](#🧱-Generating-The-Collage)
-- [Available Algorithms](#🧠-Available-Algorithms)
-- [Collage Parameters](#⚙️-Collage-Parameters)
-- [TIFF Support](#🖼-TIFF-Support)
-- [Images](#📸-Images)
-- [Performance Notes](#🚀-Performance-Notes)
-- [Troubleshooting](#🩹-Troubleshooting)
+## 📑 Table of Contents**
+## 📑 Table of Contents
+- [Overview](#overview)
+- [Project Structure](#project-structure)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Dataset Download & Setup](#dataset-download--setup)
+- [Color Preprocessing](#color-preprocessing)
+- [Generating The Collage](#generating-the-collage)
+- [Available Algorithms](#available-algorithms)
+- [Collage Parameters](#collage-parameters)
+- [TIFF Support](#tiff-support)
+- [Images](#images)
+- [Performance Notes](#performance-notes)
+- [Troubleshooting](#troubleshooting)
+
 
 ## 🧩 Overview
 
