@@ -5,7 +5,7 @@ A high-resolution collage generator using thousands of Pokémon TCG cards.
 
 <p align="center"> <img src="putmybannerhere" width="700"/> </p>
 
-## Table of Contents 📑
+## 📑 Table of Contents
 - [Overview](#overview-)
 - [Project Structure](#project-structure-)
 - [Requirements](#requirements-)
