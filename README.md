@@ -3,7 +3,9 @@
 
 A high-resolution collage generator using thousands of Pokémon TCG cards.
 
-<p align="center"> <img src="putmybannerhere" width="700"/> </p>
+<p align="center">
+  <img src="assets/banner.png" alt="Pokémon TCG Collage Generator Banner" width="100%">
+</p>
 
 ## 📑 Table of Contents
 - [Overview](#overview-)
@@ -36,6 +38,7 @@ PokemonTCG-Gen/
 ├── preprocess-color-pokemon-db.py
 ├── aggregate-pokemon-images.py
 │
+├── Pokemon Mosaics - Database/
 ├── images/
 ├── input_test/
 └── output_test/
