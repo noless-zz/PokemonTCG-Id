@@ -16,7 +16,7 @@ A high-resolution collage generator using thousands of Pokémon TCG cards.
 - [Color Preprocessing](#color-preprocessing-)
 - [Generating The Collage](#generating-the-collage-)
 - [Available Algorithms](#available-algorithms-)
-- [Collage Parameters](#collage-parameters-)
+- [Collage Algorithm Parameters](#collage-algorithm-parameters)
 - [TIFF Support](#tiff-support-)
 - [Images](#images-)
 - [Performance Notes](#performance-notes-)
@@ -77,7 +77,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Database Download & Setup 📥
+## Dataset Download & Setup 📥
 
 Run:
 
@@ -115,7 +115,7 @@ python aggregate-pokemon-images.py input_test --algorithm collage --size 7000x70
 -compose_columns: Column-stacked composition
 -test: Debug mode
 
-## Collage Algorithm Parameters ⚙️
+## Collage Algorithm Parameters
 
 ```bash
 --config "width=20,height=20,candidates=2000,prefilter=30,tolerance=8,saturation=0.4,rotation=15,displacement=1"
@@ -195,5 +195,5 @@ prefilter=30+
 
 Add:
 ```bash
---timeout 999
+--timeout 9999
 ```
