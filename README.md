@@ -16,7 +16,7 @@ A high-resolution collage generator using thousands of Pokémon TCG cards.
 - [Color Preprocessing](#color-preprocessing-)
 - [Generating The Collage](#generating-the-collage-)
 - [Available Algorithms](#available-algorithms-)
-- [Collage Parameters](#collage-parameters-)
+- [Collage Parameters](#collage-algorithm-parameters-)
 - [TIFF Support](#tiff-support-)
 - [Images](#images-)
 - [Performance Notes](#performance-notes-)
