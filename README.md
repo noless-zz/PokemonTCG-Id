@@ -102,7 +102,7 @@ This computes average/median colors in RGB, HSV, LAB and stores them in MySQL.
 Example (7K resolution):
 
 ```bash
-python aggregate-pokemon-images.py input_test --algorithm collage --size 7000x7000 --timeout 999 --output output_test/final.png --config "width=20,height=20,candidates=2000,prefilter=30,tolerance=8,saturation=0.4"
+python aggregate-pokemon-images.py input_test --algorithm collage --size 7000x7000 --timeout 9999 --output output_test/final.png --config "width=20,height=20,candidates=2000,prefilter=30,tolerance=8,saturation=0.4"
 ```
 
 ## Available Algorithms 🧠
