@@ -147,6 +147,9 @@ Example:
 ```
 
 ## Images 📸
+
+UNFINIHED, GONNA BE ADDED IN THE FUTURE
+
 1. Fast Test – 512×512
 Input  Output
 <img src="input_test/example_input.jpg" width="250"/>	<img src="output_test/example_output_512.png" width="250"/>
