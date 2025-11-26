@@ -147,6 +147,9 @@ Example:
 ```
 
 ## Images 📸
+
+UNFINISHED, IMAGES ARE SOON TO BE ADDED
+
 1. Fast Test – 512×512
 Input  Output
 <img src="input_test/example_input.jpg" width="250"/>	<img src="output_test/example_output_512.png" width="250"/>
@@ -158,7 +161,7 @@ Input  Output
 <img src="output_test/example_output_7000.png" width="550"/>
 5. Sky Correction
 Before  After
-<img src="output_test/sky_bad.png" width="300"/>	<img src="output_test/sky_good.png" width="300"/>
+<img src="assets/BabboonGen.png" width="300"/>	<img src="output_test/sky_good.png" width="300"/>
 
 ## Performance Notes 🚀
 
