@@ -172,13 +172,14 @@ def insert_sets(
     images_dir: Path,
     timeout: float,
     limits: Limits,
-) -> None:
+) -> set[str]:
     sets_file = dataset_root / "sets" / "en.json"
     ensure_exists(sets_file, "Sets JSON")
     with sets_file.open("r", encoding="utf-8") as f:
         sets = json.load(f)
     sets = apply_limit(sets, limits.max_sets)
     print(f"Inserting sets ({len(sets)} records)...")
+    inserted_set_ids: set[str] = set()
 
     for i, s in enumerate(sets, start=1):
         symbol_path = None
@@ -232,7 +233,10 @@ def insert_sets(
             ),
         )
         conn.commit()
+        inserted_set_ids.add(s["id"])
         print(f"  [{i}/{len(sets)}] set {s['id']} inserted")
+
+    return inserted_set_ids
 
 
 def insert_cards(
@@ -243,11 +247,21 @@ def insert_cards(
     images_dir: Path,
     timeout: float,
     limits: Limits,
+    allowed_set_ids: set[str] | None = None,
 ) -> None:
     cards_dir = dataset_root / "cards" / "en"
     ensure_exists(cards_dir, "Cards directory")
     card_files = sorted(p for p in cards_dir.iterdir() if p.suffix == ".json")
     card_files = apply_limit(card_files, limits.max_card_files)
+    if allowed_set_ids is not None:
+        original_count = len(card_files)
+        card_files = [p for p in card_files if p.stem in allowed_set_ids]
+        skipped_count = original_count - len(card_files)
+        if skipped_count:
+            print(
+                "Skipping card files for sets not inserted in this run "
+                f"({skipped_count} files skipped)."
+            )
     print(f"Inserting cards from {len(card_files)} set files...")
 
     for file_idx, card_file in enumerate(card_files, start=1):
@@ -471,7 +485,7 @@ def main() -> None:
     conn = connect_db(args)
     cursor = conn.cursor()
     try:
-        insert_sets(
+        inserted_set_ids = insert_sets(
             cursor,
             conn,
             dataset_root=dataset_root,
@@ -486,6 +500,7 @@ def main() -> None:
             images_dir=images_dir,
             timeout=args.request_timeout,
             limits=limits,
+            allowed_set_ids=inserted_set_ids,
         )
         insert_decks(
             cursor,
