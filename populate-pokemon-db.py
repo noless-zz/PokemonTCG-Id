@@ -1,277 +1,504 @@
-import os
+#!/usr/bin/env python3
+"""Populate the PokemonTCG MySQL DB from local pokemon-tcg-data JSON files.
+
+This script is CI-friendly:
+- no hardcoded local paths
+- no embedded DB credentials
+- configurable via CLI flags and environment variables
+"""
+
+from __future__ import annotations
+
+import argparse
 import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
 import mysql.connector
 import requests
-from pathlib import Path
 
-# Root folder of the Pokémon TCG dataset (JSONs for sets, cards, decks)
-# Absolute path in this workspace (adjusted to the cloned 'Pokémon Mosaics - Database' folder)
-JSON_ROOT = r"c:\Users\danib\Projects\PokemonTCG-Gen\Pokémon Mosaics - Database\pokemon-tcg-data-master"
-# Database connection configuration
-DB_CONFIG = {
-	"host": "localhost",
-	"user": "pokemon",
-	"password": "PokeGen_92xT!4mb7",
-	"database": "pokemon_tcg",
-	"charset": "utf8mb4"
-}
 
-# Folder where downloaded images (set logos, card images) are saved
-# Store images at an `images` folder in the project root (will be created if needed)
-IMAGES_DIR = r"c:\Users\danib\Projects\PokemonTCG-Gen\images"
-Path(IMAGES_DIR).mkdir(exist_ok=True)
+REPO_ROOT = Path(__file__).resolve().parent
+DEFAULT_DATASET_ROOT = (
+    REPO_ROOT / "Pokémon Mosaics - Database" / "pokemon-tcg-data-master"
+)
+DEFAULT_IMAGES_DIR = REPO_ROOT / "images"
 
-# Lists for collecting errors during download or DB insertion
-download_errors = []
-db_insert_errors = []
 
-# ---------- Database connection helper ----------
-def connect_db():
-	"""Establish connection to the MySQL database using DB_CONFIG."""
-	return mysql.connector.connect(**DB_CONFIG)
+@dataclass
+class Limits:
+    max_sets: int
+    max_card_files: int
+    max_cards_per_set: int
+    max_deck_files: int
+    max_decks_per_file: int
 
-# ---------- Image download helper ----------
-def download_image(url, filename):
-	"""
-	Download an image from the given URL (if it doesn't already exist locally).
-	Returns the absolute path to the downloaded (or existing) image.
-	"""
-	filepath = os.path.join(IMAGES_DIR, filename)
-	filepath = os.path.abspath(filepath).replace("\\", "/")
 
-	if not os.path.exists(filepath):
-		print(f"Downloading image from {url}...")
-		try:
-			response = requests.get(url, stream=True)
-			if response.status_code == 200:
-				with open(filepath, "wb") as f:
-					for chunk in response.iter_content(1024):
-						f.write(chunk)
-				print(f"Image saved to {filepath}")
-			else:
-				error_message = f"Failed to download image from {url}. HTTP status: {response.status_code}"
-				print(error_message)
-				download_errors.append(error_message)
-		except Exception as e:
-			error_message = f"Error downloading image from {url}: {str(e)}"
-			print(error_message)
-			download_errors.append(error_message)
-	else:
-		print(f"Image already exists at {filepath}")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Populate pokemon_tcg DB from pokemon-tcg-data JSON files."
+    )
+    parser.add_argument(
+        "--dataset-root",
+        default=os.environ.get("POKEMON_DATASET_ROOT", str(DEFAULT_DATASET_ROOT)),
+        help="Path to pokemon-tcg-data root (contains sets/en.json, cards/en, decks/en).",
+    )
+    parser.add_argument(
+        "--images-dir",
+        default=os.environ.get("POKEMON_IMAGES_DIR", str(DEFAULT_IMAGES_DIR)),
+        help="Directory where downloaded set/card images are stored.",
+    )
+    parser.add_argument(
+        "--db-host",
+        default=os.environ.get("DB_HOST", "localhost"),
+        help="MySQL host.",
+    )
+    parser.add_argument(
+        "--db-user",
+        default=os.environ.get("DB_USER", "pokemon"),
+        help="MySQL user.",
+    )
+    parser.add_argument(
+        "--db-password",
+        default=os.environ.get("DB_PASSWORD"),
+        help="MySQL password (defaults to DB_PASSWORD env var).",
+    )
+    parser.add_argument(
+        "--db-name",
+        default=os.environ.get("DB_NAME", "pokemon_tcg"),
+        help="MySQL database name.",
+    )
+    parser.add_argument(
+        "--db-charset",
+        default=os.environ.get("DB_CHARSET", "utf8mb4"),
+        help="MySQL charset.",
+    )
+    parser.add_argument(
+        "--request-timeout",
+        type=float,
+        default=float(os.environ.get("DOWNLOAD_TIMEOUT", "30")),
+        help="HTTP timeout (seconds) for image downloads.",
+    )
+    parser.add_argument(
+        "--max-sets",
+        type=int,
+        default=int(os.environ.get("POPULATE_MAX_SETS", "0")),
+        help="Max sets to process (0 = all).",
+    )
+    parser.add_argument(
+        "--max-card-files",
+        type=int,
+        default=int(os.environ.get("POPULATE_MAX_CARD_FILES", "0")),
+        help="Max card JSON files to process (0 = all).",
+    )
+    parser.add_argument(
+        "--max-cards-per-set",
+        type=int,
+        default=int(os.environ.get("POPULATE_MAX_CARDS_PER_SET", "0")),
+        help="Max cards processed per set file (0 = all).",
+    )
+    parser.add_argument(
+        "--max-deck-files",
+        type=int,
+        default=int(os.environ.get("POPULATE_MAX_DECK_FILES", "0")),
+        help="Max deck JSON files to process (0 = all).",
+    )
+    parser.add_argument(
+        "--max-decks-per-file",
+        type=int,
+        default=int(os.environ.get("POPULATE_MAX_DECKS_PER_FILE", "0")),
+        help="Max decks processed per deck file (0 = all).",
+    )
+    return parser.parse_args()
 
-	return filepath
 
-# ---------- Utility: safely JSON-encode nested values ----------
-def get_json_value(value):
-	"""
-	Convert a Python object (list/dict) into JSON text for DB storage.
-	Returns None if the value is empty.
-	"""
-	if value is None or (isinstance(value, (list, dict)) and not value):
-		return None
-	return json.dumps(value)
+def safe_json(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, (list, dict)) and not value:
+        return None
+    return json.dumps(value)
 
-# ---------- Main ingestion pipeline ----------
-def insert_data():
-	"""Load JSON data from disk and insert it into the MySQL database."""
-	db = connect_db()
-	cursor = db.cursor()
 
-	# -------------------- Insert Sets --------------------
-	print("Inserting sets...")
-	sets_file = os.path.join(JSON_ROOT, "sets/en.json")
-	with open(sets_file, "r", encoding="utf-8") as f:
-		sets = json.load(f)
-		for i, s in enumerate(sets, start=1):
-			try:
-				# Insert each set (with logo & symbol images)
-				cursor.execute("""
-					INSERT INTO sets (id, name, series, printed_total, total, legality, ptcgo_code, release_date, updated_at, symbol_image, logo_image)
-					VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-					ON DUPLICATE KEY UPDATE name=VALUES(name), updated_at=VALUES(updated_at)
-				""", (
-					s["id"],
-					s["name"],
-					s["series"],
-					s.get("printedTotal"),
-					s.get("total"),
-					get_json_value(s.get("legalities")),
-					s.get("ptcgoCode"),
-					s.get("releaseDate"),
-					s.get("updatedAt"),
-					# download set symbol and logo
-					download_image(s["images"]["symbol"], f"{s['id']}_symbol.png") if "symbol" in s["images"] else None,
-					download_image(s["images"]["logo"], f"{s['id']}_logo.png") if "logo" in s["images"] else None
-				))
-				db.commit()
-			except Exception as e:
-				error_message = f"Error inserting set {s['id']}: {str(e)}"
-				print(error_message)
-				db_insert_errors.append(error_message)
+def apply_limit(items: list[Any], n: int) -> list[Any]:
+    return items[:n] if n and n > 0 else items
 
-			print(f"Processed set {i}/{len(sets)}: {s['name']}")
 
-	# -------------------- Insert Cards --------------------
-	print("Inserting cards...")
-	cards_dir = os.path.join(JSON_ROOT, "cards/en")
-	card_files = os.listdir(cards_dir)
+def ensure_exists(path: Path, what: str) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"{what} not found: {path}")
 
-	for file_idx, card_file in enumerate(card_files, start=1):
-		set_id = os.path.splitext(card_file)[0]
-		with open(os.path.join(cards_dir, card_file), "r", encoding="utf-8") as f:
-			cards = json.load(f)
-			for card_idx, card in enumerate(cards, start=1):
-				try:
-					# --- Basic classification ---
-					cursor.execute("""
-						INSERT INTO cards_classification (id, name, supertype, number, rarity, set_id)
-						VALUES (%s, %s, %s, %s, %s, %s)
-						ON DUPLICATE KEY UPDATE name=VALUES(name)
-					""", (
-						card["id"],
-						card["name"],
-						card.get("supertype"),
-						card.get("number"),
-						card.get("rarity"),
-						set_id
-					))
 
-					# --- Subtypes (e.g. Basic, Stage 1, GX...) ---
-					for subtype in card.get("subtypes", []):
-						cursor.execute("""
-							INSERT INTO cards_subtypes (card_id, subtype)
-							VALUES (%s, %s)
-							ON DUPLICATE KEY UPDATE subtype=VALUES(subtype)
-						""", (card["id"], subtype))
+def download_image(
+    *,
+    url: str,
+    filename: str,
+    images_dir: Path,
+    timeout: float,
+) -> str:
+    images_dir.mkdir(parents=True, exist_ok=True)
+    file_path = images_dir / filename
+    if file_path.exists():
+        return file_path.resolve().as_posix()
 
-					# --- Types (e.g. Fire, Water, Psychic...) ---
-					for type_ in card.get("types", []):
-						cursor.execute("""
-							INSERT INTO cards_types (card_id, type)
-							VALUES (%s, %s)
-							ON DUPLICATE KEY UPDATE type=VALUES(type)
-						""", (card["id"], type_))
+    resp = requests.get(url, stream=True, timeout=timeout)
+    resp.raise_for_status()
+    with file_path.open("wb") as f:
+        for chunk in resp.iter_content(chunk_size=1024):
+            if chunk:
+                f.write(chunk)
+    return file_path.resolve().as_posix()
 
-					# --- Gameplay data: attacks, weaknesses, etc. ---
-					cursor.execute("""
-						INSERT INTO cards_gameplay (card_id, hp, evolves_from, abilities, attacks, weaknesses, retreat_cost, converted_retreat_cost, legality)
-						VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-						ON DUPLICATE KEY UPDATE hp=VALUES(hp)
-					""", (
-						card["id"],
-						card.get("hp"),
-						card.get("evolvesFrom"),
-						get_json_value(card.get("abilities")),
-						get_json_value(card.get("attacks")),
-						get_json_value(card.get("weaknesses")),
-						get_json_value(card.get("retreatCost")),
-						card.get("convertedRetreatCost"),
-						get_json_value(card.get("legalities"))
-					))
 
-					# --- Flavor text and lore details ---
-					cursor.execute("""
-						INSERT INTO cards_lore (card_id, flavor_text, national_pokedex_numbers, level)
-						VALUES (%s, %s, %s, %s)
-						ON DUPLICATE KEY UPDATE flavor_text=VALUES(flavor_text)
-					""", (
-						card["id"],
-						card.get("flavorText"),
-						get_json_value(card.get("nationalPokedexNumbers")),
-						card.get("level")
-					))
+def connect_db(args: argparse.Namespace) -> mysql.connector.MySQLConnection:
+    if not args.db_password:
+        raise ValueError("Missing DB password. Set DB_PASSWORD or pass --db-password.")
+    return mysql.connector.connect(
+        host=args.db_host,
+        user=args.db_user,
+        password=args.db_password,
+        database=args.db_name,
+        charset=args.db_charset,
+    )
 
-					# --- Card artwork (images) ---
-					cursor.execute("""
-						INSERT INTO cards_art (card_id, artist, small_image, large_image)
-						VALUES (%s, %s, %s, %s)
-						ON DUPLICATE KEY UPDATE artist=VALUES(artist)
-					""", (
-						card["id"],
-						card.get("artist"),
-						download_image(card["images"]["small"], f"{card['id']}_small.png"),
-						download_image(card["images"]["large"], f"{card['id']}_large.png")
-					))
 
-					# Commit all inserts for this card
-					db.commit()
+def insert_sets(
+    cursor,
+    conn,
+    *,
+    dataset_root: Path,
+    images_dir: Path,
+    timeout: float,
+    limits: Limits,
+) -> None:
+    sets_file = dataset_root / "sets" / "en.json"
+    ensure_exists(sets_file, "Sets JSON")
+    with sets_file.open("r", encoding="utf-8") as f:
+        sets = json.load(f)
+    sets = apply_limit(sets, limits.max_sets)
+    print(f"Inserting sets ({len(sets)} records)...")
 
-				except Exception as e:
-					# If anything fails for this card, record the error and continue
-					error_message = f"Error inserting card {card['id']} from set {set_id}: {str(e)}"
-					print(error_message)
-					db_insert_errors.append(error_message)
+    for i, s in enumerate(sets, start=1):
+        symbol_path = None
+        logo_path = None
+        images = s.get("images", {})
+        if "symbol" in images:
+            symbol_path = download_image(
+                url=images["symbol"],
+                filename=f"{s['id']}_symbol.png",
+                images_dir=images_dir,
+                timeout=timeout,
+            )
+        if "logo" in images:
+            logo_path = download_image(
+                url=images["logo"],
+                filename=f"{s['id']}_logo.png",
+                images_dir=images_dir,
+                timeout=timeout,
+            )
 
-			print(f"Processed {card_idx} cards in set {set_id} ({file_idx}/{len(card_files)})")
+        cursor.execute(
+            """
+            INSERT INTO sets
+                (id, name, series, printed_total, total, legality, ptcgo_code,
+                 release_date, updated_at, symbol_image, logo_image)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                name = VALUES(name),
+                series = VALUES(series),
+                printed_total = VALUES(printed_total),
+                total = VALUES(total),
+                legality = VALUES(legality),
+                ptcgo_code = VALUES(ptcgo_code),
+                release_date = VALUES(release_date),
+                updated_at = VALUES(updated_at),
+                symbol_image = VALUES(symbol_image),
+                logo_image = VALUES(logo_image)
+            """,
+            (
+                s["id"],
+                s["name"],
+                s.get("series"),
+                s.get("printedTotal"),
+                s.get("total"),
+                safe_json(s.get("legalities")),
+                s.get("ptcgoCode"),
+                s.get("releaseDate"),
+                s.get("updatedAt"),
+                symbol_path,
+                logo_path,
+            ),
+        )
+        conn.commit()
+        print(f"  [{i}/{len(sets)}] set {s['id']} inserted")
 
-	# -------------------- Insert Decks --------------------
-	print("Inserting decks...")
-	decks_dir = os.path.join(JSON_ROOT, "decks/en")
 
-	for file_idx, deck_file in enumerate(os.listdir(decks_dir), start=1):
-		set_id = os.path.splitext(deck_file)[0]
-		with open(os.path.join(decks_dir, deck_file), "r", encoding="utf-8") as f:
-			decks = json.load(f)
-			for deck in decks:
-				try:
-					# Insert deck header
-					cursor.execute("""
-						INSERT INTO decks (id, name, types)
-						VALUES (%s, %s, %s)
-						ON DUPLICATE KEY UPDATE name=VALUES(name), types=VALUES(types)
-					""", (
-						deck["id"],
-						deck["name"],
-						get_json_value(deck.get("types"))
-					))
+def insert_cards(
+    cursor,
+    conn,
+    *,
+    dataset_root: Path,
+    images_dir: Path,
+    timeout: float,
+    limits: Limits,
+) -> None:
+    cards_dir = dataset_root / "cards" / "en"
+    ensure_exists(cards_dir, "Cards directory")
+    card_files = sorted(p for p in cards_dir.iterdir() if p.suffix == ".json")
+    card_files = apply_limit(card_files, limits.max_card_files)
+    print(f"Inserting cards from {len(card_files)} set files...")
 
-					# Insert deck contents (card counts)
-					for card_entry in deck.get("cards", []):
-						cursor.execute("""
-							INSERT INTO deck_cards (deck_id, card_id, count)
-							VALUES (%s, %s, %s)
-							ON DUPLICATE KEY UPDATE count=VALUES(count)
-						""", (
-							deck["id"],
-							card_entry["id"],
-							card_entry["count"]
-						))
+    for file_idx, card_file in enumerate(card_files, start=1):
+        set_id = card_file.stem
+        with card_file.open("r", encoding="utf-8") as f:
+            cards = json.load(f)
+        cards = apply_limit(cards, limits.max_cards_per_set)
 
-					db.commit()
+        for card_idx, card in enumerate(cards, start=1):
+            card_id = card["id"]
 
-				except Exception as e:
-					error_message = f"Error inserting deck {deck['id']} from set {set_id}: {str(e)}"
-					print(error_message)
-					db_insert_errors.append(error_message)
+            cursor.execute(
+                """
+                INSERT INTO cards_classification (id, name, supertype, number, rarity, set_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    name = VALUES(name),
+                    supertype = VALUES(supertype),
+                    number = VALUES(number),
+                    rarity = VALUES(rarity),
+                    set_id = VALUES(set_id)
+                """,
+                (
+                    card_id,
+                    card.get("name"),
+                    card.get("supertype"),
+                    card.get("number"),
+                    card.get("rarity"),
+                    set_id,
+                ),
+            )
 
-				print(f"Processed deck {deck['id']} in set {set_id} ({deck_file}/{len(os.listdir(decks_dir))})")
+            for subtype in card.get("subtypes", []):
+                cursor.execute(
+                    """
+                    INSERT INTO cards_subtypes (card_id, subtype)
+                    VALUES (%s, %s)
+                    ON DUPLICATE KEY UPDATE subtype = VALUES(subtype)
+                    """,
+                    (card_id, subtype),
+                )
 
-	# Close DB connection
-	cursor.close()
-	db.close()
+            for type_ in card.get("types", []):
+                cursor.execute(
+                    """
+                    INSERT INTO cards_types (card_id, type)
+                    VALUES (%s, %s)
+                    ON DUPLICATE KEY UPDATE type = VALUES(type)
+                    """,
+                    (card_id, type_),
+                )
 
-# ---------- Error summary printing ----------
-def print_summary():
-	"""Prints a short report of all download and DB insertion errors."""
-	if download_errors:
-		print("\nDownload Errors:")
-		for error in download_errors:
-			print(f"- {error}")
-	else:
-		print("\nNo download errors.")
+            cursor.execute(
+                """
+                INSERT INTO cards_gameplay (
+                    card_id, hp, evolves_from, abilities, attacks,
+                    weaknesses, retreat_cost, converted_retreat_cost, legality
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    hp = VALUES(hp),
+                    evolves_from = VALUES(evolves_from),
+                    abilities = VALUES(abilities),
+                    attacks = VALUES(attacks),
+                    weaknesses = VALUES(weaknesses),
+                    retreat_cost = VALUES(retreat_cost),
+                    converted_retreat_cost = VALUES(converted_retreat_cost),
+                    legality = VALUES(legality)
+                """,
+                (
+                    card_id,
+                    card.get("hp"),
+                    card.get("evolvesFrom"),
+                    safe_json(card.get("abilities")),
+                    safe_json(card.get("attacks")),
+                    safe_json(card.get("weaknesses")),
+                    safe_json(card.get("retreatCost")),
+                    card.get("convertedRetreatCost"),
+                    safe_json(card.get("legalities")),
+                ),
+            )
 
-	if db_insert_errors:
-		print("\nDatabase Insertion Errors:")
-		for error in db_insert_errors:
-			print(f"- {error}")
-	else:
-		print("\nNo database insertion errors.")
+            cursor.execute(
+                """
+                INSERT INTO cards_lore (
+                    card_id, flavor_text, national_pokedex_numbers, level
+                )
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    flavor_text = VALUES(flavor_text),
+                    national_pokedex_numbers = VALUES(national_pokedex_numbers),
+                    level = VALUES(level)
+                """,
+                (
+                    card_id,
+                    card.get("flavorText"),
+                    safe_json(card.get("nationalPokedexNumbers")),
+                    card.get("level"),
+                ),
+            )
 
-# ---------- Script entry point ----------
+            images = card.get("images", {})
+            small_image = None
+            large_image = None
+            if "small" in images:
+                small_image = download_image(
+                    url=images["small"],
+                    filename=f"{card_id}_small.png",
+                    images_dir=images_dir,
+                    timeout=timeout,
+                )
+            if "large" in images:
+                large_image = download_image(
+                    url=images["large"],
+                    filename=f"{card_id}_large.png",
+                    images_dir=images_dir,
+                    timeout=timeout,
+                )
+
+            cursor.execute(
+                """
+                INSERT INTO cards_art (card_id, artist, small_image, large_image)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    artist = VALUES(artist),
+                    small_image = VALUES(small_image),
+                    large_image = VALUES(large_image)
+                """,
+                (
+                    card_id,
+                    card.get("artist"),
+                    small_image,
+                    large_image,
+                ),
+            )
+            conn.commit()
+
+            if card_idx % 100 == 0 or card_idx == len(cards):
+                print(
+                    f"  [cards] file {file_idx}/{len(card_files)} "
+                    f"({set_id}) - {card_idx}/{len(cards)}"
+                )
+
+
+def insert_decks(
+    cursor,
+    conn,
+    *,
+    dataset_root: Path,
+    limits: Limits,
+) -> None:
+    decks_dir = dataset_root / "decks" / "en"
+    ensure_exists(decks_dir, "Decks directory")
+    deck_files = sorted(p for p in decks_dir.iterdir() if p.suffix == ".json")
+    deck_files = apply_limit(deck_files, limits.max_deck_files)
+    print(f"Inserting decks from {len(deck_files)} set files...")
+
+    for file_idx, deck_file in enumerate(deck_files, start=1):
+        with deck_file.open("r", encoding="utf-8") as f:
+            decks = json.load(f)
+        decks = apply_limit(decks, limits.max_decks_per_file)
+
+        for deck_idx, deck in enumerate(decks, start=1):
+            deck_id = deck["id"]
+            cursor.execute(
+                """
+                INSERT INTO decks (id, name, types)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    name = VALUES(name),
+                    types = VALUES(types)
+                """,
+                (
+                    deck_id,
+                    deck.get("name"),
+                    safe_json(deck.get("types")),
+                ),
+            )
+
+            for card_entry in deck.get("cards", []):
+                cursor.execute(
+                    """
+                    INSERT INTO deck_cards (deck_id, card_id, count)
+                    VALUES (%s, %s, %s)
+                    ON DUPLICATE KEY UPDATE count = VALUES(count)
+                    """,
+                    (
+                        deck_id,
+                        card_entry.get("id"),
+                        card_entry.get("count"),
+                    ),
+                )
+            conn.commit()
+
+            if deck_idx % 50 == 0 or deck_idx == len(decks):
+                print(
+                    f"  [decks] file {file_idx}/{len(deck_files)} "
+                    f"- {deck_idx}/{len(decks)}"
+                )
+
+
+def main() -> None:
+    args = parse_args()
+    dataset_root = Path(args.dataset_root).expanduser().resolve()
+    images_dir = Path(args.images_dir).expanduser().resolve()
+    ensure_exists(dataset_root, "Dataset root")
+
+    limits = Limits(
+        max_sets=max(0, args.max_sets),
+        max_card_files=max(0, args.max_card_files),
+        max_cards_per_set=max(0, args.max_cards_per_set),
+        max_deck_files=max(0, args.max_deck_files),
+        max_decks_per_file=max(0, args.max_decks_per_file),
+    )
+
+    print("Starting DB population with configuration:")
+    print(f"  dataset_root: {dataset_root}")
+    print(f"  images_dir:   {images_dir}")
+    print(f"  db:           {args.db_user}@{args.db_host}/{args.db_name}")
+
+    conn = connect_db(args)
+    cursor = conn.cursor()
+    try:
+        insert_sets(
+            cursor,
+            conn,
+            dataset_root=dataset_root,
+            images_dir=images_dir,
+            timeout=args.request_timeout,
+            limits=limits,
+        )
+        insert_cards(
+            cursor,
+            conn,
+            dataset_root=dataset_root,
+            images_dir=images_dir,
+            timeout=args.request_timeout,
+            limits=limits,
+        )
+        insert_decks(
+            cursor,
+            conn,
+            dataset_root=dataset_root,
+            limits=limits,
+        )
+    finally:
+        cursor.close()
+        conn.close()
+
+    print("Population complete.")
+
+
 if __name__ == "__main__":
-	try:
-		insert_data()
-	except Exception as e:
-		print(f"An unexpected error occurred: {str(e)}")
-	finally:
-		print_summary()
+    main()
