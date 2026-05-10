@@ -472,7 +472,8 @@ def insert_decks(
                 )
     if skipped_missing_cards:
         print(
-            "Skipped deck card references not present in cards_classification "
+            "Skipped deck card references with missing IDs or cards not present "
+            "in cards_classification "
             f"({skipped_missing_cards} rows skipped)."
         )
 
