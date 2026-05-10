@@ -453,12 +453,13 @@ def insert_decks(
                     SELECT %s, c.id, %s
                     FROM cards_classification c
                     WHERE c.id = %s
-                    ON DUPLICATE KEY UPDATE count = VALUES(count)
+                    ON DUPLICATE KEY UPDATE count = %s
                     """,
                     (
                         deck_id,
                         card_entry.get("count"),
                         card_id,
+                        card_entry.get("count"),
                     ),
                 )
                 if cursor.rowcount == 0:
