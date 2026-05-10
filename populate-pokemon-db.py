@@ -418,6 +418,9 @@ def insert_decks(
     deck_files = sorted(p for p in decks_dir.iterdir() if p.suffix == ".json")
     deck_files = apply_limit(deck_files, limits.max_deck_files)
     print(f"Inserting decks from {len(deck_files)} set files...")
+    cursor.execute("SELECT id FROM cards_classification")
+    existing_card_ids: set[str] = {row[0] for row in cursor.fetchall()}
+    skipped_missing_cards = 0
 
     for file_idx, deck_file in enumerate(deck_files, start=1):
         with deck_file.open("r", encoding="utf-8") as f:
@@ -442,6 +445,10 @@ def insert_decks(
             )
 
             for card_entry in deck.get("cards", []):
+                card_id = card_entry.get("id")
+                if not card_id or card_id not in existing_card_ids:
+                    skipped_missing_cards += 1
+                    continue
                 cursor.execute(
                     """
                     INSERT INTO deck_cards (deck_id, card_id, count)
@@ -450,7 +457,7 @@ def insert_decks(
                     """,
                     (
                         deck_id,
-                        card_entry.get("id"),
+                        card_id,
                         card_entry.get("count"),
                     ),
                 )
@@ -461,6 +468,11 @@ def insert_decks(
                     f"  [decks] file {file_idx}/{len(deck_files)} "
                     f"- {deck_idx}/{len(decks)}"
                 )
+    if skipped_missing_cards:
+        print(
+            "Skipped deck card references not present in cards_classification "
+            f"({skipped_missing_cards} rows skipped)."
+        )
 
 
 def main() -> None:
