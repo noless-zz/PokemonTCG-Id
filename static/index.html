@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <title>Pokémon TCG Scanner</title>
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #1a1a2e;
+      --surface:   #16213e;
+      --card-bg:   #0f3460;
+      --accent:    #e94560;
+      --text:      #eaeaea;
+      --muted:     #8888aa;
+      --good:      #4caf50;
+      --warn:      #ff9800;
+      --radius:    12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1rem;
+      gap: 1rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      text-align: center;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Camera section ────────────────────────────────────────────────── */
+    .camera-wrapper {
+      position: relative;
+      width: min(100%, 480px);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #000;
+      aspect-ratio: 4/3;
+    }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Overlay guide frame */
+    .guide-frame {
+      position: absolute;
+      inset: 10%;
+      border: 2px dashed rgba(255,255,255,0.5);
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    /* Status badge */
+    #status-badge {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.65);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      transition: color 0.3s;
+    }
+
+    /* ── Controls ──────────────────────────────────────────────────────── */
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: min(100%, 480px);
+    }
+
+    button {
+      padding: 0.65rem 1.4rem;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    button:active { transform: scale(0.96); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #btn-capture  { background: var(--accent); color: #fff; flex: 1; }
+    #btn-cam-flip { background: var(--surface); color: var(--text); }
+    #btn-auto     { background: var(--card-bg); color: var(--text); min-width: 130px; }
+    #btn-auto.active { background: var(--good); color: #fff; }
+
+    /* ── Results panel ─────────────────────────────────────────────────── */
+    .results {
+      width: min(100%, 480px);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .result-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      display: flex;
+      gap: 1rem;
+      padding: 0.8rem;
+      align-items: flex-start;
+      border-left: 4px solid var(--muted);
+    }
+    .result-card.best { border-left-color: var(--accent); }
+
+    .result-card img {
+      width: 60px;
+      height: 84px;
+      object-fit: contain;
+      border-radius: 4px;
+      background: #000;
+    }
+
+    .result-info { flex: 1; }
+    .result-name { font-weight: 700; font-size: 1rem; }
+    .result-set  { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+    .badge-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 6px; }
+    .badge {
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-conf { background: #2a4a6a; color: #8ec6ff; }
+    .badge-price { background: #2a4a2a; color: #8fffa0; }
+    .badge-warn  { background: #5a4a1a; color: #ffd770; }
+
+    /* Quality warning bar */
+    #quality-bar {
+      width: min(100%, 480px);
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    #quality-bar.visible { display: flex; }
+    #quality-bar.ok   { border-left: 4px solid var(--good); }
+    #quality-bar.warn { border-left: 4px solid var(--warn); }
+
+    #no-match {
+      text-align: center;
+      color: var(--muted);
+      padding: 1rem;
+      display: none;
+    }
+
+    /* Loading spinner */
+    .spinner {
+      width: 20px; height: 20px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .spinner.active { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    canvas { display: none; }
+  </style>
+</head>
+<body>
+  <h1>🎴 Pokémon TCG Scanner</h1>
+
+  <div class="camera-wrapper">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="guide-frame"></div>
+    <span id="status-badge">Starting camera…</span>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <div class="controls">
+    <button id="btn-capture" disabled>📸 Scan Card</button>
+    <button id="btn-cam-flip" title="Switch front/back camera">🔄</button>
+    <button id="btn-auto">⚡ Auto-Scan</button>
+    <div class="spinner" id="spinner"></div>
+  </div>
+
+  <div id="quality-bar">
+    <span id="quality-icon">⚠️</span>
+    <span id="quality-text">Checking image quality…</span>
+  </div>
+
+  <div class="results" id="results"></div>
+  <p id="no-match">No confident match found. Hold the card steady and try again.</p>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,7 +1,15 @@
 mysql-connector-python
 requests
-opencv-python
+opencv-python-headless
 numpy
 tifffile
 pillow
 colormath
+
+# TCG scanner additions
+fastapi
+uvicorn[standard]
+python-multipart
+imagehash
+scipy
+pytest

@@ -91,3 +91,46 @@ CREATE TABLE preprocessed_images (
     median_color_lab JSON,
     FOREIGN KEY (card_id) REFERENCES cards_classification(id)
 );
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Card identification & pricing tables (added for webcam scanner feature)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Stores perceptual-hash fingerprints used for fast visual card matching.
+-- phash_int is the 64-bit integer representation of a pHash computed from the
+-- card's small_image; phash_str keeps the hex form for debugging.
+CREATE TABLE card_match_index (
+    card_id    VARCHAR(20) PRIMARY KEY,
+    phash_int  BIGINT UNSIGNED NOT NULL,
+    phash_str  VARCHAR(16) NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (card_id) REFERENCES cards_classification(id)
+);
+
+-- Stores market price snapshots fetched from external sources (e.g. pokemontcg.io
+-- which proxies TCGplayer / Cardmarket data).
+CREATE TABLE card_prices (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    card_id      VARCHAR(20) NOT NULL,
+    source       VARCHAR(50) NOT NULL COMMENT 'e.g. tcgplayer, cardmarket',
+    market       VARCHAR(50) NOT NULL COMMENT 'e.g. normal, holofoil, 1stEditionHolofoil',
+    currency     CHAR(3)     NOT NULL DEFAULT 'USD',
+    condition    VARCHAR(30)          COMMENT 'e.g. near_mint, lightly_played, market',
+    price        DECIMAL(10,2),
+    captured_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (card_id) REFERENCES cards_classification(id),
+    INDEX idx_card_prices_card_id (card_id),
+    INDEX idx_card_prices_captured_at (captured_at)
+);
+
+-- Optional history of scans performed via the webcam UI.
+CREATE TABLE scan_history (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    scanned_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    matched_card_id  VARCHAR(20),
+    confidence       FLOAT,
+    hamming_distance INT          COMMENT 'Lower = more similar',
+    source_device    VARCHAR(255) COMMENT 'User-Agent of the scanning client',
+    FOREIGN KEY (matched_card_id) REFERENCES cards_classification(id),
+    INDEX idx_scan_history_card_id (matched_card_id)
+);
