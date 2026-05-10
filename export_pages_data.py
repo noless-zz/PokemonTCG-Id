@@ -101,7 +101,7 @@ def main() -> None:
     cards = cur.fetchall()
 
     latest_prices_query = """
-        SELECT p.card_id, p.source, p.market, p.currency, p.condition, p.price, p.captured_at
+        SELECT p.card_id, p.source, p.market, p.currency, p.`condition`, p.price, p.captured_at
         FROM card_prices p
         JOIN (
             SELECT card_id, MAX(captured_at) AS max_captured_at

@@ -115,7 +115,7 @@ CREATE TABLE card_prices (
     source       VARCHAR(50) NOT NULL COMMENT 'e.g. tcgplayer, cardmarket',
     market       VARCHAR(50) NOT NULL COMMENT 'e.g. normal, holofoil, 1stEditionHolofoil',
     currency     CHAR(3)     NOT NULL DEFAULT 'USD',
-    condition    VARCHAR(30)          COMMENT 'e.g. near_mint, lightly_played, market',
+    `condition`  VARCHAR(30)          COMMENT 'e.g. near_mint, lightly_played, market',
     price        DECIMAL(10,2),
     captured_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (card_id) REFERENCES cards_classification(id),
