@@ -12,6 +12,16 @@ from pathlib import Path
 import mysql.connector
 
 
+ALLOWED_COUNT_TABLES = {
+    "sets",
+    "cards_classification",
+    "cards_art",
+    "preprocessed_images",
+    "card_match_index",
+    "card_prices",
+}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Export card metadata and latest prices as JSON for static hosting."
@@ -42,6 +52,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def query_count(cur, table: str) -> int:
+    if table not in ALLOWED_COUNT_TABLES:
+        raise ValueError(f"Unsupported table for count query: {table}")
+    # Safe interpolation: table is constrained by ALLOWED_COUNT_TABLES.
     cur.execute(f"SELECT COUNT(*) AS c FROM {table}")
     return int(cur.fetchone()["c"])
 

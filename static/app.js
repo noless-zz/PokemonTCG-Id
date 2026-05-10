@@ -41,11 +41,18 @@ let autoScanTimer   = null;
 let scanning        = false;
 
 function isGitHubPagesHost() {
-  return window.location.hostname.endsWith('github.io');
+  return /(^|\.)github\.io$/i.test(window.location.hostname);
+}
+
+function requiresExplicitApiBaseUrl() {
+  if (typeof runtimeConfig.requireExplicitApiBaseUrl === 'boolean') {
+    return runtimeConfig.requireExplicitApiBaseUrl;
+  }
+  return isGitHubPagesHost();
 }
 
 function hasApiConfigured() {
-  return Boolean(API_BASE_URL) || !isGitHubPagesHost();
+  return Boolean(API_BASE_URL) || !requiresExplicitApiBaseUrl();
 }
 
 function apiUrl(path) {
@@ -99,7 +106,10 @@ function captureFrame() {
 async function scanCard() {
   if (scanning) return;
   if (!hasApiConfigured()) {
-    setStatus('API not configured for GitHub Pages. Set static/config.js apiBaseUrl.', '#ff9800');
+    setStatus(
+      'API not configured for GitHub Pages. Define window.POKEMON_TCG_CONFIG.apiBaseUrl (or edit static/config.js).',
+      '#ff9800',
+    );
     return;
   }
   scanning = true;

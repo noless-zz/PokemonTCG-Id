@@ -83,9 +83,11 @@ jobs:
           mysql -h 127.0.0.1 -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < "Pokémon Mosaics - Database/pokemon-tcg-schema.sql"
 
       - name: Generate DB content
+        env:
+          FULL_REGENERATION: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.full_regeneration == true || inputs.full_regeneration == 'true')) }}
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.full_regeneration }}" == "true" ]] || [[ "${{ github.event_name }}" == "schedule" ]]; then
+          if [[ "$FULL_REGENERATION" == "true" ]]; then
             python populate-pokemon-db.py
             python preprocess-color-pokemon.py --force
             python build_index.py --force

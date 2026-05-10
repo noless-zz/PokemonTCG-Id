@@ -5,6 +5,8 @@ window.POKEMON_TCG_CONFIG = Object.assign(
     // Reserved for future static-data mode exports.
     dataBaseUrl: './data',
     mode: 'api',
+    // Optional override for custom-domain Pages deployments.
+    requireExplicitApiBaseUrl: false,
   },
   window.POKEMON_TCG_CONFIG || {},
 );
