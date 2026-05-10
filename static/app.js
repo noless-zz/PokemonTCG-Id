@@ -16,6 +16,8 @@
 const AUTO_SCAN_INTERVAL_MS = 2000;
 const CAPTURE_JPEG_QUALITY  = 0.85;
 const MAX_CAPTURE_WIDTH     = 640;   // down-sample before sending to server
+const runtimeConfig = window.POKEMON_TCG_CONFIG || {};
+const API_BASE_URL = String(runtimeConfig.apiBaseUrl || '').replace(/\/+$/, '');
 
 /* ── DOM refs ────────────────────────────────────────────────────────────── */
 const video       = document.getElementById('video');
@@ -37,6 +39,18 @@ let currentStream   = null;
 let facingMode      = 'environment';   // 'environment'=back, 'user'=front
 let autoScanTimer   = null;
 let scanning        = false;
+
+function isGitHubPagesHost() {
+  return window.location.hostname.endsWith('github.io');
+}
+
+function hasApiConfigured() {
+  return Boolean(API_BASE_URL) || !isGitHubPagesHost();
+}
+
+function apiUrl(path) {
+  return API_BASE_URL ? `${API_BASE_URL}${path}` : path;
+}
 
 /* ── Camera helpers ──────────────────────────────────────────────────────── */
 
@@ -84,6 +98,10 @@ function captureFrame() {
 
 async function scanCard() {
   if (scanning) return;
+  if (!hasApiConfigured()) {
+    setStatus('API not configured for GitHub Pages. Set static/config.js apiBaseUrl.', '#ff9800');
+    return;
+  }
   scanning = true;
   spinner.classList.add('active');
   btnCapture.disabled = true;
@@ -93,7 +111,7 @@ async function scanCard() {
     const formData = new FormData();
     formData.append('file', blob, 'frame.jpg');
 
-    const res = await fetch('/api/identify', { method: 'POST', body: formData });
+    const res = await fetch(apiUrl('/api/identify'), { method: 'POST', body: formData });
     if (!res.ok) {
       throw new Error(`Server error ${res.status}`);
     }
@@ -169,7 +187,9 @@ function renderResults(data) {
     // Click card row → open detail page.
     el.style.cursor = 'pointer';
     el.addEventListener('click', () => {
-      if (m.card_id) window.open(`/api/cards/${encodeURIComponent(m.card_id)}`, '_blank');
+      if (m.card_id) {
+        window.open(apiUrl(`/api/cards/${encodeURIComponent(m.card_id)}`), '_blank');
+      }
     });
     resultsEl.appendChild(el);
   });
@@ -209,4 +229,7 @@ function escHtml(str) {
 }
 
 /* ── Initialise ──────────────────────────────────────────────────────────── */
+if (isGitHubPagesHost() && !hasApiConfigured()) {
+  setStatus('GitHub Pages mode: configure static/config.js apiBaseUrl to enable scanning.', '#ff9800');
+}
 startCamera(facingMode);

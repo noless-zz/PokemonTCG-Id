@@ -105,6 +105,61 @@ python start_server.py
 Hold a Pokémon TCG card in front of the camera and tap **Scan Card** (or enable **Auto-Scan** for continuous scanning).
 
 
+## GitHub Pages Deployment 🌐
+
+This repository includes a GitHub Actions workflow that:
+
+1. boots a temporary MySQL service in CI,  
+2. runs Python DB generation scripts (`populate-pokemon-db.py`, `preprocess-color-pokemon.py`, `build_index.py`, `sync_prices.py`),  
+3. exports deterministic JSON artifacts (`export_pages_data.py`), and  
+4. deploys a static frontend + exported data to GitHub Pages.
+
+### Architecture (Pages Mode A)
+
+```text
+GitHub Actions (CI)
+  ├─ Generate/refresh DB tables + data
+  ├─ Export JSON artifacts to deploy/pages/data
+  └─ Publish static frontend to GitHub Pages
+
+GitHub Pages (runtime)
+  ├─ index.html + static/app.js + static/config.js
+  └─ exported JSON artifacts
+
+External API backend (runtime)
+  └─ /api/identify and /api/cards/{id}
+```
+
+> GitHub Pages cannot execute Python or MySQL at request-time.  
+> Runtime scanning still requires a hosted API backend; configure it via `static/config.js` (`apiBaseUrl`).
+
+### Workflow and triggers
+
+Workflow file: `.github/workflows/deploy-pages.yml`
+
+- **push to `main`** (relevant paths): runs a **bounded generation** profile for faster deploys.
+- **manual (`workflow_dispatch`)**: supports `full_regeneration=true` for full dataset rebuild.
+- **scheduled nightly**: runs full regeneration.
+
+### Secrets and configuration
+
+- `POKEMONTCG_API_KEY` (optional) – increases pokemontcg.io rate limits for `sync_prices.py`.
+- DB credentials are ephemeral in the workflow (service container) and are not stored in source files.
+
+### Recovery if deployment fails
+
+1. Open **Actions → Deploy GitHub Pages** and inspect the failing step logs.  
+2. Re-run with **workflow_dispatch** and `full_regeneration=false` to verify baseline health.  
+3. If failures are dataset/API-rate related, add/verify `POKEMONTCG_API_KEY` and re-run full regeneration.  
+4. Confirm artifact validation step created:
+   - `deploy/pages/index.html`
+   - `deploy/pages/static/app.js`
+   - `deploy/pages/static/config.js`
+   - `deploy/pages/data/build-info.json`
+   - `deploy/pages/data/cards.json`
+   - `deploy/pages/data/latest-prices.json`
+
+
 ## Scanner – Architecture 🏗
 
 ```
