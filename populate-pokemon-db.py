@@ -445,7 +445,7 @@ def insert_decks(
             for card_entry in deck.get("cards", []):
                 card_id = card_entry.get("id")
                 card_count = card_entry.get("count")
-                if not card_id:
+                if not card_id or card_count is None:
                     skipped_missing_cards += 1
                     continue
                 cursor.execute(
@@ -474,7 +474,7 @@ def insert_decks(
                 )
     if skipped_missing_cards:
         print(
-            "Skipped deck card references with missing IDs or cards not present "
+            "Skipped deck card references with missing IDs/counts or cards not present "
             "in cards_classification. "
             f"({skipped_missing_cards} rows skipped)."
         )
