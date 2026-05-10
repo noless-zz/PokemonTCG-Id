@@ -10,7 +10,7 @@ import os
 DB_CONFIG: dict = {
     "host": os.environ.get("DB_HOST", "localhost"),
     "user": os.environ.get("DB_USER", "pokemon"),
-    "password": os.environ.get("DB_PASSWORD", "PokeGen_92xT!4mb7"),
+    "password": os.environ["DB_PASSWORD"],   # required – set DB_PASSWORD env var
     "database": os.environ.get("DB_NAME", "pokemon_tcg"),
     "charset": "utf8mb4",
 }

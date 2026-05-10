@@ -10,6 +10,8 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+import mysql.connector
+
 from api.db import get_connection
 
 logger = logging.getLogger(__name__)
@@ -45,7 +47,7 @@ def get_prices_for_card(card_id: str) -> list[dict]:
             if row.get("price") is not None:
                 row["price"] = float(row["price"])
         return rows
-    except Exception as exc:  # noqa: BLE001
+    except mysql.connector.Error as exc:
         logger.warning("Price lookup failed for %s: %s", card_id, exc)
         return []
 

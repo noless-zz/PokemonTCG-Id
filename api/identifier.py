@@ -76,13 +76,8 @@ def _hamming_distance_all(query_int: int) -> np.ndarray:
     """Return Hamming distance between *query_int* and every indexed phash."""
     q = np.uint64(query_int)
     xor = _index_phashes ^ q
-    # Vectorised popcount using bitwise trick.
-    dist = np.zeros(len(xor), dtype=np.uint8)
-    tmp = xor.copy()
-    while np.any(tmp):
-        dist += (tmp & np.uint64(1)).astype(np.uint8)
-        tmp >>= np.uint64(1)
-    return dist
+    # np.bitwise_count is available in NumPy ≥ 2.0 and is the fastest path.
+    return np.bitwise_count(xor).astype(np.uint8)
 
 
 def _phash_to_int(ph: imagehash.ImageHash) -> int:

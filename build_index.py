@@ -22,6 +22,7 @@ import sys
 import time
 
 import imagehash
+import mysql.connector
 from PIL import Image, UnidentifiedImageError
 
 sys.path.insert(0, __file__.rsplit("/build_index.py", 1)[0])
@@ -116,7 +117,7 @@ def build(limit: int = 0, force: bool = False) -> None:
         except (FileNotFoundError, UnidentifiedImageError) as exc:
             logger.warning("Skip %s (%s): %s", card_id, image_path, exc)
             errors += 1
-        except Exception as exc:  # noqa: BLE001
+        except (mysql.connector.Error, OSError) as exc:
             logger.error("Error on %s: %s", card_id, exc)
             errors += 1
 

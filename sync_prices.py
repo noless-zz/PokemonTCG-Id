@@ -25,6 +25,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
+import mysql.connector
 import requests
 
 # Ensure project root is importable.
@@ -141,7 +142,7 @@ def upsert_prices(cursor, conn, card_id: str, prices: list[dict]) -> int:
     for p in prices:
         try:
             cursor.execute(
-                """
+                    """
                 INSERT INTO card_prices
                     (card_id, source, market, currency, `condition`, price, captured_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -157,7 +158,7 @@ def upsert_prices(cursor, conn, card_id: str, prices: list[dict]) -> int:
                 ),
             )
             inserted += 1
-        except Exception as exc:  # noqa: BLE001
+        except mysql.connector.Error as exc:
             logger.debug("Skip price insert for %s: %s", card_id, exc)
     conn.commit()
     return inserted

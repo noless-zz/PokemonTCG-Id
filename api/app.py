@@ -15,6 +15,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import mysql.connector
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -130,7 +131,7 @@ async def identify(
             )
         cur.close()
         conn.close()
-    except Exception as exc:  # noqa: BLE001
+    except mysql.connector.Error as exc:
         logger.warning("DB enrichment failed: %s", exc)
 
     # Log scan to scan_history (best-effort; non-fatal).
@@ -225,5 +226,5 @@ def _record_scan(
         conn.commit()
         cur.close()
         conn.close()
-    except Exception:  # noqa: BLE001
-        pass
+    except mysql.connector.Error as exc:
+        logger.debug("scan_history insert failed (non-fatal): %s", exc)
