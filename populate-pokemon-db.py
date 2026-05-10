@@ -444,6 +444,7 @@ def insert_decks(
 
             for card_entry in deck.get("cards", []):
                 card_id = card_entry.get("id")
+                card_count = card_entry.get("count")
                 if not card_id:
                     skipped_missing_cards += 1
                     continue
@@ -457,9 +458,9 @@ def insert_decks(
                     """,
                     (
                         deck_id,
-                        card_entry.get("count"),
+                        card_count,
                         card_id,
-                        card_entry.get("count"),
+                        card_count,
                     ),
                 )
                 if cursor.rowcount == 0:
