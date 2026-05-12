@@ -137,14 +137,18 @@ def download_image(
     filename: str,
     images_dir: Path,
     timeout: float,
-) -> str:
+) -> str | None:
     images_dir.mkdir(parents=True, exist_ok=True)
     file_path = images_dir / filename
     if file_path.exists():
         return file_path.resolve().as_posix()
 
-    resp = requests.get(url, stream=True, timeout=timeout)
-    resp.raise_for_status()
+    try:
+        resp = requests.get(url, stream=True, timeout=timeout)
+        resp.raise_for_status()
+    except requests.exceptions.HTTPError as exc:
+        print(f"  [warning] skipping image {url}: {exc}")
+        return None
     with file_path.open("wb") as f:
         for chunk in resp.iter_content(chunk_size=1024):
             if chunk:
