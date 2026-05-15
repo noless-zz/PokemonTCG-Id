@@ -60,6 +60,19 @@ function apiUrl(path) {
   return API_BASE_URL ? `${API_BASE_URL}${path}` : path;
 }
 
+function cameraErrorMessage(err) {
+  if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+    return 'Camera permission denied. Allow camera access and reload.';
+  }
+  if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+    return 'No camera detected on this device.';
+  }
+  if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+    return 'Camera is in use by another app. Close it and retry.';
+  }
+  return `Camera error: ${err?.message ?? 'Unknown error'}`;
+}
+
 /* ── Camera helpers ──────────────────────────────────────────────────────── */
 
 async function startCamera(facing = 'environment') {
@@ -94,15 +107,7 @@ async function startCamera(facing = 'environment') {
     }
     btnCapture.disabled = false;
   } catch (err) {
-    if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-      setStatus('Camera permission denied. Allow camera access and reload.', '#e94560');
-    } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
-      setStatus('No camera detected on this device.', '#e94560');
-    } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
-      setStatus('Camera is in use by another app. Close it and retry.', '#e94560');
-    } else {
-      setStatus(`Camera error: ${err.message}`, '#e94560');
-    }
+    setStatus(cameraErrorMessage(err), '#e94560');
     console.error('Camera error:', err);
     btnCapture.disabled = true;
   }
