@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from decimal import Decimal
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -57,6 +58,22 @@ def query_count(cur, table: str) -> int:
     # Safe interpolation: table is constrained by ALLOWED_COUNT_TABLES.
     cur.execute(f"SELECT COUNT(*) AS c FROM {table}")
     return int(cur.fetchone()["c"])
+
+
+def _normalize_for_json(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {k: _normalize_for_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_for_json(v) for v in value]
+    return value
+
+
+def _normalize_rows(rows: list[dict]) -> list[dict]:
+    return [{k: _normalize_for_json(v) for k, v in row.items()} for row in rows]
 
 
 def main() -> None:
@@ -120,10 +137,8 @@ def main() -> None:
     cur.close()
     conn.close()
 
-    for row in latest_prices:
-        captured = row.get("captured_at")
-        if hasattr(captured, "isoformat"):
-            row["captured_at"] = captured.isoformat()
+    cards = _normalize_rows(cards)
+    latest_prices = _normalize_rows(latest_prices)
 
     artifact_info = {
         "generated_at": datetime.now(timezone.utc).isoformat(),

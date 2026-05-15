@@ -106,10 +106,14 @@ jobs:
 
       - name: Export Pages data artifacts
         run: |
-          python export_pages_data.py \
+          set -euo pipefail
+          if ! python export_pages_data.py \
             --output-dir deploy/pages/data \
             --max-cards 5000 \
-            --max-prices 5000
+            --max-prices 5000; then
+            echo "::error::export_pages_data.py failed. Ensure all exported fields are JSON-serializable."
+            exit 1
+          fi
 
       - name: Assemble Pages site
         run: |
@@ -120,12 +124,27 @@ jobs:
 
       - name: Validate artifact files
         run: |
+          set -euo pipefail
           test -s deploy/pages/index.html
           test -s deploy/pages/static/app.js
           test -s deploy/pages/static/config.js
           test -s deploy/pages/data/build-info.json
           test -s deploy/pages/data/cards.json
           test -s deploy/pages/data/latest-prices.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = [
+              Path("deploy/pages/data/build-info.json"),
+              Path("deploy/pages/data/cards.json"),
+              Path("deploy/pages/data/latest-prices.json"),
+          ]
+          for path in paths:
+              with path.open("r", encoding="utf-8") as f:
+                  json.load(f)
+          print("JSON artifacts are valid.")
+          PY
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
