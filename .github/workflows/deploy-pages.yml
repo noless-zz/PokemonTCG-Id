@@ -143,6 +143,15 @@ jobs:
           for path in paths:
               with path.open("r", encoding="utf-8") as f:
                   json.load(f)
+          index_html = Path("deploy/pages/index.html").read_text(encoding="utf-8")
+          if 'src="/static/' in index_html:
+              raise SystemExit(
+                  "index.html contains absolute /static paths; use relative static/... for project Pages deployments."
+              )
+          required_script_refs = ('src="static/config.js"', 'src="static/app.js"')
+          for script_ref in required_script_refs:
+              if script_ref not in index_html:
+                  raise SystemExit(f"index.html missing required script reference: {script_ref}")
           print("JSON artifacts are valid.")
           PY
 

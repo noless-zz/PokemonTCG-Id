@@ -132,6 +132,11 @@ External API backend (runtime)
 
 > GitHub Pages cannot execute Python or MySQL at request-time.  
 > Runtime scanning still requires a hosted API backend; configure it via `static/config.js` (`apiBaseUrl`).
+>
+> On project Pages deployments (for example `https://<user>.github.io/<repo>/`), frontend assets are loaded with
+> repo-relative paths (`static/...`) so they work correctly under the repository subpath.
+>
+> With no `apiBaseUrl` configured, the camera preview can still initialize, but card identification requests are disabled.
 
 ### Workflow and triggers
 
@@ -158,6 +163,8 @@ Workflow file: `.github/workflows/deploy-pages.yml`
    - `deploy/pages/data/build-info.json`
    - `deploy/pages/data/cards.json`
    - `deploy/pages/data/latest-prices.json`
+5. If deploy logs appear to run briefly after build completes, this is expected while `actions/deploy-pages`
+   polls GitHub Pages status (`deployment_queued` → success).
 
 
 ## Scanner – Architecture 🏗

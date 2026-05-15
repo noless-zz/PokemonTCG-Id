@@ -11,6 +11,7 @@
  */
 
 'use strict';
+window.__PTCG_APP_BOOTED__ = true;
 
 /* ── Constants ──────────────────────────────────────────────────────────── */
 const AUTO_SCAN_INTERVAL_MS = 2000;
@@ -62,6 +63,16 @@ function apiUrl(path) {
 /* ── Camera helpers ──────────────────────────────────────────────────────── */
 
 async function startCamera(facing = 'environment') {
+  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+    setStatus('Camera not supported in this browser. Use a recent Chrome/Firefox/Safari.', '#e94560');
+    btnCapture.disabled = true;
+    return;
+  }
+  if (!window.isSecureContext) {
+    setStatus('Camera requires HTTPS (or localhost).', '#e94560');
+    btnCapture.disabled = true;
+    return;
+  }
   if (currentStream) {
     currentStream.getTracks().forEach(t => t.stop());
   }
@@ -76,11 +87,24 @@ async function startCamera(facing = 'environment') {
     currentStream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = currentStream;
     await video.play();
-    setStatus('Ready – point camera at a card', '#8ec6ff');
+    if (hasApiConfigured()) {
+      setStatus('Ready – point camera at a card', '#8ec6ff');
+    } else {
+      setStatus('Camera ready. Configure static/config.js apiBaseUrl to enable scanning.', '#ff9800');
+    }
     btnCapture.disabled = false;
   } catch (err) {
-    setStatus(`Camera error: ${err.message}`, '#e94560');
+    if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+      setStatus('Camera permission denied. Allow camera access and reload.', '#e94560');
+    } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+      setStatus('No camera detected on this device.', '#e94560');
+    } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+      setStatus('Camera is in use by another app. Close it and retry.', '#e94560');
+    } else {
+      setStatus(`Camera error: ${err.message}`, '#e94560');
+    }
     console.error('Camera error:', err);
+    btnCapture.disabled = true;
   }
 }
 
@@ -242,4 +266,8 @@ function escHtml(str) {
 if (isGitHubPagesHost() && !hasApiConfigured()) {
   setStatus('GitHub Pages mode: configure static/config.js apiBaseUrl to enable scanning.', '#ff9800');
 }
-startCamera(facingMode);
+if (isGitHubPagesHost() && !window.__POKEMON_TCG_CONFIG_LOADED__) {
+  setStatus('Config failed to load (static/config.js). Verify GitHub Pages static paths.', '#e94560');
+} else {
+  startCamera(facingMode);
+}

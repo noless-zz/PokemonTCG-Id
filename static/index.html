@@ -211,7 +211,19 @@
   <div class="results" id="results"></div>
   <p id="no-match">No confident match found. Hold the card steady and try again.</p>
 
-  <script src="/static/config.js" onerror="this.onerror=null;this.src='static/config.js'"></script>
-  <script src="/static/app.js" onerror="this.onerror=null;this.src='static/app.js'"></script>
+  <script>
+    window.__PTCG_APP_BOOTED__ = false;
+    window.setTimeout(() => {
+      if (window.__PTCG_APP_BOOTED__) return;
+      const status = document.getElementById('status-badge');
+      if (status) {
+        status.textContent = 'App failed to load. Reload the page and check static asset paths.';
+        status.style.color = '#e94560';
+      }
+      console.error('Scanner frontend failed to boot (app.js not loaded).');
+    }, 3000);
+  </script>
+  <script src="static/config.js" onerror="this.onerror=null;this.src='/static/config.js'"></script>
+  <script src="static/app.js" onerror="this.onerror=null;this.src='/static/app.js'"></script>
 </body>
 </html>
