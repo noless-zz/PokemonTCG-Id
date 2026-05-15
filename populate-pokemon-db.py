@@ -422,6 +422,8 @@ def insert_decks(
     deck_files = sorted(p for p in decks_dir.iterdir() if p.suffix == ".json")
     deck_files = apply_limit(deck_files, limits.max_deck_files)
     print(f"Inserting decks from {len(deck_files)} set files...")
+    skipped_missing_fields = 0
+    skipped_missing_referenced_cards = 0
 
     for file_idx, deck_file in enumerate(deck_files, start=1):
         with deck_file.open("r", encoding="utf-8") as f:
@@ -446,18 +448,30 @@ def insert_decks(
             )
 
             for card_entry in deck.get("cards", []):
+                card_id = card_entry.get("id")
+                card_count = card_entry.get("count")
+                if not card_id or card_count is None:
+                    skipped_missing_fields += 1
+                    continue
                 cursor.execute(
                     """
                     INSERT INTO deck_cards (deck_id, card_id, count)
-                    VALUES (%s, %s, %s)
-                    ON DUPLICATE KEY UPDATE count = VALUES(count)
+                    SELECT %s, %s, %s
+                    WHERE EXISTS (
+                        SELECT 1 FROM cards_classification WHERE id = %s
+                    )
+                    ON DUPLICATE KEY UPDATE count = %s
                     """,
                     (
                         deck_id,
-                        card_entry.get("id"),
-                        card_entry.get("count"),
+                        card_id,
+                        card_count,
+                        card_id,
+                        card_count,
                     ),
                 )
+                if cursor.rowcount == 0:
+                    skipped_missing_referenced_cards += 1
             conn.commit()
 
             if deck_idx % 50 == 0 or deck_idx == len(decks):
@@ -465,6 +479,13 @@ def insert_decks(
                     f"  [decks] file {file_idx}/{len(deck_files)} "
                     f"- {deck_idx}/{len(decks)}"
                 )
+    if skipped_missing_fields or skipped_missing_referenced_cards:
+        print(
+            "Skipped deck card references due to missing ID/count fields or "
+            "missing cards in cards_classification "
+            f"(missing fields: {skipped_missing_fields}, "
+            f"missing cards: {skipped_missing_referenced_cards})."
+        )
 
 
 def main() -> None:
