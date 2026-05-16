@@ -93,6 +93,11 @@ def fetch_cards_page(page: int, page_size: int = 250, set_id: str = "") -> dict:
             return resp.json()
         except requests.RequestException:
             if attempt >= FETCH_MAX_RETRIES:
+                logger.error(
+                    "Fetch page %d failed after %d attempts.",
+                    page,
+                    FETCH_MAX_RETRIES,
+                )
                 raise
             delay = FETCH_RETRY_BACKOFF_SECONDS * attempt
             logger.warning(
@@ -103,7 +108,6 @@ def fetch_cards_page(page: int, page_size: int = 250, set_id: str = "") -> dict:
                 delay,
             )
             time.sleep(delay)
-    raise RuntimeError(f"Failed to fetch cards page {page}")
 
 
 def extract_prices(card: dict) -> list[dict]:
