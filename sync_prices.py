@@ -63,6 +63,10 @@ CARDMARKET_CONDITIONS = (
     "avg30",
 )
 
+FETCH_TIMEOUT_SECONDS = 30
+FETCH_MAX_RETRIES = 3
+FETCH_RETRY_BACKOFF_SECONDS = 2.0
+
 
 def build_headers() -> dict[str, str]:
     headers: dict[str, str] = {"Content-Type": "application/json"}
@@ -77,9 +81,29 @@ def fetch_cards_page(page: int, page_size: int = 250, set_id: str = "") -> dict:
     if set_id:
         params["q"] = f"set.id:{set_id}"
     url = f"{POKEMONTCG_API_BASE}/cards"
-    resp = requests.get(url, headers=build_headers(), params=params, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    for attempt in range(1, FETCH_MAX_RETRIES + 1):
+        try:
+            resp = requests.get(
+                url,
+                headers=build_headers(),
+                params=params,
+                timeout=FETCH_TIMEOUT_SECONDS,
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except requests.RequestException:
+            if attempt >= FETCH_MAX_RETRIES:
+                raise
+            delay = FETCH_RETRY_BACKOFF_SECONDS * attempt
+            logger.warning(
+                "Fetch page %d failed (attempt %d/%d). Retrying in %.1fs.",
+                page,
+                attempt,
+                FETCH_MAX_RETRIES,
+                delay,
+            )
+            time.sleep(delay)
+    raise RuntimeError(f"Failed to fetch cards page {page}")
 
 
 def extract_prices(card: dict) -> list[dict]:
@@ -178,7 +202,7 @@ def sync(limit: int = 0, set_id: str = "") -> None:
         logger.info("Fetching page %d…", page)
         try:
             data = fetch_cards_page(page, set_id=set_id)
-        except requests.HTTPError as exc:
+        except requests.RequestException as exc:
             logger.error("API error: %s", exc)
             break
 
